@@ -5,29 +5,75 @@ import {
   useTheme,
   Paper,
   Divider,
+  CircularProgress,
+  Alert,
 } from "@mui/material";
 import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
 import CloudUploadOutlinedIcon from "@mui/icons-material/CloudUploadOutlined";
 import { tokens } from "../../theme";
 import Header from "../../components/Header";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+
+const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
 
 const SlipUpload = () => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
 
   const [selectedFile, setSelectedFile] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [resp, setResp] = useState(null);
+  const [error, setError] = useState("");
+
+  // preview รูปแบบไว ๆ
+  const previewUrl = useMemo(() => {
+    if (!selectedFile) return null;
+    return URL.createObjectURL(selectedFile);
+  }, [selectedFile]);
 
   const handleFileChange = (event) => {
-    setSelectedFile(event.target.files[0]);
+    const f = event.target.files?.[0];
+    if (!f) return;
+    setSelectedFile(f);
+    setResp(null);
+    setError("");
   };
 
-  const handleUpload = () => {
+  const handleUpload = async () => {
     if (!selectedFile) {
       alert("Please select a file first");
       return;
     }
-    console.log("Uploading file:", selectedFile);
+
+    setLoading(true);
+    setResp(null);
+    setError("");
+
+    try {
+      const formData = new FormData();
+
+      // 🔥 สำคัญ: ชื่อ field ต้องเป็น "file" ให้ตรงกับ backend
+      // upload_image(file: UploadFile = File(...))
+      formData.append("file", selectedFile);
+
+      const res = await fetch(`${API_BASE}/upload/`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        // บางที backend ส่ง error เป็น json / text
+        const text = await res.text();
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      setResp(data);
+    } catch (err) {
+      setError(err?.message || "Upload failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -47,11 +93,11 @@ const SlipUpload = () => {
           elevation={6}
           sx={{
             width: "100%",
-            maxWidth: "900px", // ⬅️ จาก 1200 → 900 (กำลังสวย)
-            minHeight: "auto", // ⬅️ ไม่บังคับสูงเกิน
-            p: "32px", // ⬅️ จาก 48 → 32
+            maxWidth: "900px",
+            minHeight: "auto",
+            p: "32px",
             backgroundColor: colors.primary[400],
-            borderRadius: "16px", // ⬅️ นุ่มแต่ไม่เวอร์
+            borderRadius: "16px",
           }}
         >
           {/* Title */}
@@ -111,6 +157,7 @@ const SlipUpload = () => {
                 }}
                 fullWidth
                 size="large"
+                disabled={loading}
               >
                 Select File
                 <input
@@ -123,9 +170,21 @@ const SlipUpload = () => {
             </Box>
 
             {selectedFile && (
-              <Typography variant="body2" mt="20px" color={colors.grey[300]}>
-                Selected file: <strong>{selectedFile.name}</strong>
-              </Typography>
+              <>
+                <Typography variant="body2" mt="20px" color={colors.grey[300]}>
+                  Selected file: <strong>{selectedFile.name}</strong>
+                </Typography>
+
+                {previewUrl && (
+                  <Box mt="16px">
+                    <img
+                      src={previewUrl}
+                      alt="preview"
+                      style={{ maxWidth: "100%", borderRadius: 12 }}
+                    />
+                  </Box>
+                )}
+              </>
             )}
           </Box>
 
@@ -133,7 +192,13 @@ const SlipUpload = () => {
           <Box mt="40px" maxWidth="420px" mx="auto">
             <Button
               variant="contained"
-              startIcon={<CloudUploadOutlinedIcon />}
+              startIcon={
+                loading ? (
+                  <CircularProgress size={18} color="inherit" />
+                ) : (
+                  <CloudUploadOutlinedIcon />
+                )
+              }
               onClick={handleUpload}
               sx={{
                 backgroundColor: colors.greenAccent[600],
@@ -145,9 +210,46 @@ const SlipUpload = () => {
               }}
               fullWidth
               size="large"
+              disabled={!selectedFile || loading}
             >
-              Upload Slip
+              {loading ? "Uploading..." : "Upload Slip"}
             </Button>
+          </Box>
+
+          {/* Result */}
+          <Box mt="24px">
+            {error && <Alert severity="error">{error}</Alert>}
+
+            {resp && (
+              <Box mt="16px">
+                <Alert severity="success">OCR processed successfully</Alert>
+
+                <Box mt="12px">
+                  <Typography color={colors.grey[100]} fontWeight={600}>
+                    Extracted
+                  </Typography>
+                  <Typography color={colors.grey[300]}>
+                    Bank: {resp?.extracted?.bank ?? "-"}
+                  </Typography>
+                  <Typography color={colors.grey[300]}>
+                    Amount: {resp?.extracted?.amount ?? "-"}
+                  </Typography>
+                  <Typography color={colors.grey[300]}>
+                    Date: {resp?.extracted?.date ?? "-"}
+                  </Typography>
+                  <Typography color={colors.grey[300]}>
+                    Time: {resp?.extracted?.time ?? "-"}
+                  </Typography>
+                  <Typography color={colors.grey[300]}>
+                    Memo: {resp?.extracted?.memo ?? "-"}
+                  </Typography>
+                  <Typography color={colors.grey[300]}>
+                    Suggested Category: {resp?.extracted?.suggested_category ?? "-"}
+                  </Typography>
+                </Box>
+
+              </Box>
+            )}
           </Box>
         </Paper>
       </Box>
