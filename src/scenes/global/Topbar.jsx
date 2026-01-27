@@ -6,13 +6,18 @@ import LightModeOutlinedIcon from "@mui/icons-material/LightModeOutlined";
 import DarkModeOutlinedIcon from "@mui/icons-material/DarkModeOutlined";
 import NotificationsOutlinedIcon from "@mui/icons-material/NotificationsOutlined";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
-import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
+import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import SearchIcon from "@mui/icons-material/Search";
 
-const Topbar = () => {
+const Topbar = ({ setIsLogin }) => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
   const colorMode = useContext(ColorModeContext);
+
+  const handleLogout = () => {
+    localStorage.removeItem("mock_user"); // ลบสถานะ login
+    setIsLogin(false);                    // กลับไปหน้า login
+  };
 
   return (
     <Box display="flex" justifyContent="space-between" p={2}>
@@ -29,7 +34,7 @@ const Topbar = () => {
       </Box>
 
       {/* ICONS */}
-      <Box display="flex">
+      <Box display="flex" alignItems="center">
         <IconButton onClick={colorMode.toggleColorMode}>
           {theme.palette.mode === "dark" ? (
             <DarkModeOutlinedIcon />
@@ -37,14 +42,18 @@ const Topbar = () => {
             <LightModeOutlinedIcon />
           )}
         </IconButton>
+
         <IconButton>
           <NotificationsOutlinedIcon />
         </IconButton>
+
         <IconButton>
           <SettingsOutlinedIcon />
         </IconButton>
-        <IconButton>
-          <PersonOutlinedIcon />
+
+        {/* LOGOUT */}
+        <IconButton onClick={handleLogout} title="Logout">
+          <LogoutOutlinedIcon />
         </IconButton>
       </Box>
     </Box>
