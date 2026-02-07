@@ -13,12 +13,14 @@ import CloudUploadOutlinedIcon from "@mui/icons-material/CloudUploadOutlined";
 import { tokens } from "../../theme";
 import Header from "../../components/Header";
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom"; // ✅ เพิ่ม
 
 const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
 
 const SlipUpload = () => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
+  const navigate = useNavigate(); // ✅ เพิ่ม
 
   const [selectedFile, setSelectedFile] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -53,22 +55,43 @@ const SlipUpload = () => {
       const formData = new FormData();
 
       // 🔥 สำคัญ: ชื่อ field ต้องเป็น "file" ให้ตรงกับ backend
-      // upload_image(file: UploadFile = File(...))
       formData.append("file", selectedFile);
+
+      const token = localStorage.getItem("token") || sessionStorage.getItem("token");
 
       const res = await fetch(`${API_BASE}/upload/`, {
         method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,
       });
 
       if (!res.ok) {
-        // บางที backend ส่ง error เป็น json / text
         const text = await res.text();
         throw new Error(text || `HTTP ${res.status}`);
       }
 
       const data = await res.json();
       setResp(data);
+
+      // ✅ เพิ่ม: พาไปหน้า SlipResult พร้อมส่ง state (previewUrl + ocr + transaction_id)
+      navigate("/slip/result", {
+        state: {
+          previewUrl, // ✅ ส่งรูปไปแสดงต่อ
+          ocr: {
+            ...(data?.extracted || {}),
+            // ✅ เผื่อ backend ส่ง memo/suggested_category แยกนอก extracted ก็รองรับ
+            memo: data?.memo ?? data?.extracted?.memo ?? null,
+            suggested_category:
+              data?.suggested_category ?? data?.extracted?.suggested_category ?? null,
+            category_required:
+              data?.category_required ?? data?.extracted?.category_required ?? false,
+
+            // ✅ สำคัญสุด ใช้ไป PATCH /transactions/{id} ต่อ
+            transaction_id: data?.transaction_id ?? null,
+          },
+          transaction_id: data?.transaction_id ?? null,
+        },
+      });
     } catch (err) {
       setError(err?.message || "Upload failed");
     } finally {
@@ -78,10 +101,7 @@ const SlipUpload = () => {
 
   return (
     <Box m="20px">
-      <Header
-        title="SLIP UPLOAD"
-        subtitle="Upload transfer slip for OCR processing"
-      />
+      <Header title="SLIP UPLOAD" subtitle="Upload transfer slip for OCR processing" />
 
       <Box
         height="calc(100vh - 140px)"
@@ -121,17 +141,11 @@ const SlipUpload = () => {
               textAlign: "center",
               backgroundColor: colors.primary[500],
               transition: "0.3s",
-              "&:hover": {
-                backgroundColor: colors.primary[600],
-              },
+              "&:hover": { backgroundColor: colors.primary[600] },
             }}
           >
             <UploadFileOutlinedIcon
-              sx={{
-                fontSize: "48px",
-                color: colors.greenAccent[400],
-                mb: "16px",
-              }}
+              sx={{ fontSize: "48px", color: colors.greenAccent[400], mb: "16px" }}
             />
 
             <Typography variant="h6" mb="8px" color={colors.grey[100]}>
@@ -160,12 +174,7 @@ const SlipUpload = () => {
                 disabled={loading}
               >
                 Select File
-                <input
-                  type="file"
-                  hidden
-                  accept="image/*"
-                  onChange={handleFileChange}
-                />
+                <input type="file" hidden accept="image/*" onChange={handleFileChange} />
               </Button>
             </Box>
 
@@ -193,20 +202,14 @@ const SlipUpload = () => {
             <Button
               variant="contained"
               startIcon={
-                loading ? (
-                  <CircularProgress size={18} color="inherit" />
-                ) : (
-                  <CloudUploadOutlinedIcon />
-                )
+                loading ? <CircularProgress size={18} color="inherit" /> : <CloudUploadOutlinedIcon />
               }
               onClick={handleUpload}
               sx={{
                 backgroundColor: colors.greenAccent[600],
                 py: "10px",
                 fontSize: "16px",
-                "&:hover": {
-                  backgroundColor: colors.greenAccent[700],
-                },
+                "&:hover": { backgroundColor: colors.greenAccent[700] },
               }}
               fullWidth
               size="large"
@@ -247,7 +250,6 @@ const SlipUpload = () => {
                     Suggested Category: {resp?.extracted?.suggested_category ?? "-"}
                   </Typography>
                 </Box>
-
               </Box>
             )}
           </Box>

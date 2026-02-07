@@ -28,35 +28,69 @@ import CloudOutlinedIcon from "@mui/icons-material/CloudOutlined";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { tokens } from "../../theme";
 
+const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
+
 export default function Login({ setIsLogin }) {
   const nav = useNavigate();
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
 
-  const [form, setForm] = useState({ email: "", password: "", remember: true });
+  const [form, setForm] = useState({ email: "", password: "", remember: true});
   const [err, setErr] = useState("");
   const [showPw, setShowPw] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const onChange = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
   const onToggleRemember = (e) => setForm((p) => ({ ...p, remember: e.target.checked }));
 
-  const onSubmit = (e) => {
+  const onSubmit = async (e) => {
     e.preventDefault();
     setErr("");
+    setLoading(true);
 
     try {
-      const email = form.email.trim();
-      if (!email) throw new Error("Please enter your email");
+      const username = form.email.trim();
+      const password = form.password || "";
 
-      // ✅ mock login (frontend only)
-      const payload = { email };
-      if (form.remember) localStorage.setItem("mock_user", JSON.stringify(payload));
-      else sessionStorage.setItem("mock_user", JSON.stringify(payload));
+      if (!username) throw new Error("Please enter your username");
+      if (!password) throw new Error("Please enter your password");
+
+
+      const body = new URLSearchParams();
+      body.append("username", username);
+      body.append("password", password);
+
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body,
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      const token = data?.access_token;
+
+      if (!token) throw new Error("Login succeeded but no access_token returned");
+
+      const storage = form.remember ? localStorage : sessionStorage;
+
+      storage.setItem("token", token);
+      storage.setItem("user", JSON.stringify({ username }));
+
+      const other = form.remember ? sessionStorage : localStorage;
+      other.removeItem("token");
+      other.removeItem("user");
 
       setIsLogin(true);
       nav("/");
     } catch (ex) {
       setErr(ex?.message || "Login failed");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -107,11 +141,12 @@ export default function Login({ setIsLogin }) {
         position: "relative",
         overflow: "hidden",
         background: `radial-gradient(1200px 500px at 20% 15%, ${colors.greenAccent[500]}22 0%, transparent 60%),
-                     radial-gradient(900px 450px at 85% 15%, ${colors.blueAccent?.[500] ? colors.blueAccent[500] : colors.greenAccent[500]}18 0%, transparent 55%),
+                     radial-gradient(900px 450px at 85% 15%, ${
+                       colors.blueAccent?.[500] ? colors.blueAccent[500] : colors.greenAccent[500]
+                     }18 0%, transparent 55%),
                      linear-gradient(180deg, ${colors.primary[600]} 0%, ${colors.primary[700]} 100%)`,
       }}
     >
-      {/* subtle grid pattern overlay */}
       <Box
         aria-hidden
         sx={{
@@ -128,7 +163,6 @@ export default function Login({ setIsLogin }) {
         }}
       />
 
-      {/* glow blobs */}
       <Box
         aria-hidden
         sx={{
@@ -178,7 +212,7 @@ export default function Login({ setIsLogin }) {
             minHeight: { xs: "auto", md: 560 },
           }}
         >
-          {/* LEFT: Hero */}
+          {/* LEFT */}
           <Box
             sx={{
               p: { xs: 3, md: 4 },
@@ -198,9 +232,10 @@ export default function Login({ setIsLogin }) {
                   </Typography>
                 </Stack>
 
+                {/* เปลี่ยน label จาก Mock Login -> Backend Login */}
                 <Chip
                   icon={<AutoAwesomeOutlinedIcon />}
-                  label="Mock Login"
+                  label="Backend Login"
                   sx={{
                     fontWeight: 900,
                     px: 0.8,
@@ -213,7 +248,6 @@ export default function Login({ setIsLogin }) {
                 />
               </Box>
 
-              {/* trust chips */}
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                 <Chip
                   icon={<ShieldOutlinedIcon />}
@@ -250,7 +284,6 @@ export default function Login({ setIsLogin }) {
                 />
               </Stack>
 
-              {/* feature cards */}
               <Stack spacing={1.5} sx={{ mt: 1 }}>
                 <Box sx={featureCardSx}>
                   <Typography fontWeight={900} color={colors.grey[100]}>
@@ -290,13 +323,13 @@ export default function Login({ setIsLogin }) {
                 }}
               >
                 <Typography variant="body2" color={colors.grey[200]} sx={{ opacity: 0.95 }}>
-                  Tip: Use a real email format (e.g. <b>name@example.com</b>) to keep your demo consistent.
+                  Tip: Use your <b>username</b> (you can still type an email if you use email as username).
                 </Typography>
               </Box>
             </Stack>
           </Box>
 
-          {/* RIGHT: Form */}
+          {/* RIGHT */}
           <Box sx={{ p: { xs: 3, md: 4 } }}>
             <Stack spacing={2.2}>
               <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
@@ -304,10 +337,10 @@ export default function Login({ setIsLogin }) {
                   Sign in
                 </Typography>
 
-                <Tooltip title="Frontend-only mock login (no backend)" arrow>
+                <Tooltip title="Login via backend /auth/login" arrow>
                   <Chip
                     icon={<InfoOutlinedIcon />}
-                    label="Demo mode"
+                    label="API mode"
                     size="small"
                     sx={{
                       borderRadius: 999,
@@ -337,12 +370,12 @@ export default function Login({ setIsLogin }) {
 
               <Stack component="form" spacing={2} onSubmit={onSubmit}>
                 <TextField
-                  label="Email"
+                  label="Username"
                   value={form.email}
                   onChange={onChange("email")}
                   required
                   autoFocus
-                  placeholder="name@example.com"
+                  placeholder="jis"
                   sx={textFieldSx}
                   InputProps={{
                     startAdornment: (
@@ -354,7 +387,7 @@ export default function Login({ setIsLogin }) {
                 />
 
                 <TextField
-                  label="Password (mock)"
+                  label="Password"
                   type={showPw ? "text" : "password"}
                   value={form.password}
                   onChange={onChange("password")}
@@ -377,26 +410,14 @@ export default function Login({ setIsLogin }) {
                             "&:hover": { backgroundColor: `${colors.primary[500]}66` },
                           }}
                         >
-                          {showPw ? (
-                            <VisibilityOffOutlinedIcon fontSize="small" />
-                          ) : (
-                            <VisibilityOutlinedIcon fontSize="small" />
-                          )}
+                          {showPw ? <VisibilityOffOutlinedIcon fontSize="small" /> : <VisibilityOutlinedIcon fontSize="small" />}
                         </IconButton>
                       </InputAdornment>
                     ),
                   }}
                 />
 
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: 1,
-                    flexWrap: "wrap",
-                  }}
-                >
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
                   <FormControlLabel
                     control={
                       <Checkbox
@@ -433,6 +454,7 @@ export default function Login({ setIsLogin }) {
                   type="submit"
                   variant="contained"
                   size="large"
+                  disabled={loading}
                   sx={{
                     borderRadius: 2.2,
                     py: 1.2,
@@ -444,7 +466,7 @@ export default function Login({ setIsLogin }) {
                     "&:hover": { backgroundColor: colors.greenAccent[400] },
                   }}
                 >
-                  Sign in
+                  {loading ? "Signing in..." : "Sign in"}
                 </Button>
 
                 <Divider sx={{ borderColor: `${colors.primary[500]}aa`, opacity: 0.9 }} />
@@ -463,17 +485,6 @@ export default function Login({ setIsLogin }) {
                   >
                     Create an account
                   </Box>
-                </Typography>
-
-                <Typography
-                  variant="caption"
-                  sx={{ opacity: 0.78, lineHeight: 1.6 }}
-                  textAlign="center"
-                  color={colors.grey[300]}
-                >
-                  * Frontend-only mock login: email is required, password is optional.
-                  <br />
-                  If you uncheck “Remember me”, it saves to session only.
                 </Typography>
               </Stack>
             </Stack>

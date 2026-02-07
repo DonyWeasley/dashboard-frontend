@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Box,
   Typography,
@@ -7,6 +7,8 @@ import {
   TextField,
   MenuItem,
   Paper,
+  Alert,
+  CircularProgress,
 } from "@mui/material";
 import { tokens } from "../../theme";
 import Header from "../../components/Header";
@@ -14,7 +16,9 @@ import { ResponsiveLine } from "@nivo/line";
 import { ResponsivePie } from "@nivo/pie";
 import { ResponsiveBar } from "@nivo/bar";
 
-// Mock data
+const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
+
+/* Month options (เดิม) */
 const months = [
   { value: "01", label: "January" },
   { value: "02", label: "February" },
@@ -30,90 +34,145 @@ const months = [
   { value: "12", label: "December" },
 ];
 
-// Mock summary
-const summaryData = {
-  total: 12500,
-  topCategory: "Travel",
-  topBank: "Bank A",
-  totalTransactions: 289,
-};
 
-// Mock Line data
-const lineDataMonth = [
-  {
-    id: "Expenses",
-    color: "hsl(219, 70%, 50%)",
-    data: Array.from({ length: 30 }, (_, i) => ({
-      x: `${i + 1}`,
-      y: Math.floor(Math.random() * 1000),
-    })),
-  },
-];
-
-const lineDataYear = [
-  {
-    id: "Expenses",
-    color: "hsl(219, 70%, 50%)",
-    data: Array.from({ length: 12 }, (_, i) => ({
-      x: months[i].label,
-      y: Math.floor(Math.random() * 10000),
-    })),
-  },
-];
-
-// Mock Pie data
-const pieData = [
-  {
-    id: "SCB",
-    label: "Siam Commercial Bank",
-    value: 32000,
-  },
-  {
-    id: "KBank",
-    label: "Kasikornbank",
-    value: 28000,
-  },
-  {
-    id: "BangkokBank",
-    label: "Bangkok Bank",
-    value: 21000,
-  },
-  {
-    id: "KTB",
-    label: "Krungthai Bank",
-    value: 18000,
-  },
-  {
-    id: "KTC",
-    label: "Krungthai Card",
-    value: 15000,
-  },
-];
-
-// Mock Bar data
-const barData = [
-  { category: "Travel", amount: 4000 },
-  { category: "Food", amount: 3000 },
-  { category: "Office", amount: 2500 },
-  { category: "Health", amount: 2000 },
-  { category: "Other", amount: 1000 },
-];
+const fmtMoney = (n) =>
+  Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
 
 const StatisticalInformations = () => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
 
-  // Filters
-  const [filterType, setFilterType] = useState("all");
+
+  const [filterType, setFilterType] = useState("all"); // all | month | year
   const [month, setMonth] = useState("01");
   const [year, setYear] = useState("2026");
+
+
+  const [cards, setCards] = useState({
+    total_expenses: 0,
+    top_category: "Others",
+    top_bank: "-",
+    total_transactions: 0,
+  });
+  const [expensesOverTime, setExpensesOverTime] = useState([]); // [{x,total}]
+  const [bankDist, setBankDist] = useState([]); // [{bank,total}]
+  const [categoryExpenses, setCategoryExpenses] = useState([]); // [{category,total}]
+
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      setLoading(true);
+      setErr("");
+
+      try {
+        const token =
+          localStorage.getItem("token") || sessionStorage.getItem("token");
+
+        const params = new URLSearchParams();
+        params.set("range", filterType);
+
+        if (filterType === "month") {
+          params.set("year", year);
+          params.set("month", String(parseInt(month, 10))); // backend ใช้ 1-12
+        } else if (filterType === "year") {
+          params.set("year", year);
+        }
+
+        const res = await fetch(`${API_BASE}/stats?${params.toString()}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || `HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+
+        setCards(data?.cards || {});
+        setExpensesOverTime(Array.isArray(data?.expenses_over_time) ? data.expenses_over_time : []);
+        setBankDist(Array.isArray(data?.bank_distribution) ? data.bank_distribution : []);
+        setCategoryExpenses(Array.isArray(data?.category_expenses) ? data.category_expenses : []);
+      } catch (e) {
+        setErr(e?.message || "Failed to load statistics");
+        setCards({
+          total_expenses: 0,
+          top_category: "Others",
+          top_bank: "-",
+          total_transactions: 0,
+        });
+        setExpensesOverTime([]);
+        setBankDist([]);
+        setCategoryExpenses([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, [filterType, month, year]);
+
+  // ----------------------------
+  // ✅ แปลง data ให้ Nivo ใช้ได้
+  // ----------------------------
+
+
+  const lineData = useMemo(() => {
+    const dataPoints = (expensesOverTime || []).map((p) => {
+      const xRaw = p?.x;
+      let xLabel = String(xRaw ?? "");
+
+      if (filterType === "year") {
+        const mm = Number(xRaw);
+        xLabel = months[mm - 1]?.label || String(xRaw);
+      }
+
+      return { x: xLabel, y: Number(p?.total || 0) };
+    });
+
+    return [
+      {
+        id: "Expenses",
+        data: dataPoints,
+      },
+    ];
+  }, [expensesOverTime, filterType]);
+
+
+  const pieData = useMemo(() => {
+    return (bankDist || [])
+      .filter((b) => Number(b?.total || 0) > 0)
+      .map((b) => ({
+        id: b.bank || "-",
+        label: b.bank || "-",
+        value: Number(b.total || 0),
+      }));
+  }, [bankDist]);
+
+
+  const barData = useMemo(() => {
+    return (categoryExpenses || []).map((c) => ({
+      category: c.category || "Others",
+      amount: Number(c.total || 0),
+    }));
+  }, [categoryExpenses]);
 
   return (
     <Box m="20px">
       <Header title="STATISTICAL INFORMATION" subtitle="Overview of Expenses" />
+
+      {/* ✅ Error */}
+      {err && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {err}
+        </Alert>
+      )}
+
       {/* Filter Section */}
       <Stack direction="row" spacing={2} mb={3} alignItems="center">
-        {/* Filter Type */}
         <TextField
           select
           size="small"
@@ -127,7 +186,6 @@ const StatisticalInformations = () => {
           <MenuItem value="year">By Year</MenuItem>
         </TextField>
 
-        {/* Month */}
         {filterType === "month" && (
           <TextField
             select
@@ -145,7 +203,6 @@ const StatisticalInformations = () => {
           </TextField>
         )}
 
-        {/* Year */}
         {filterType !== "all" && (
           <TextField
             select
@@ -161,181 +218,69 @@ const StatisticalInformations = () => {
           </TextField>
         )}
       </Stack>
+
+      {/* ✅ Loading overlay แบบไม่ทำ UI พัง */}
+      {loading && (
+        <Box display="flex" alignItems="center" gap={1.5} mb={2}>
+          <CircularProgress size={18} />
+          <Typography color={colors.grey[200]}>Loading statistics…</Typography>
+        </Box>
+      )}
+
       {/* Summary Section */}
-      <Stack
-        direction="row"
-        spacing={1.5}
-        mb={2}
-        sx={{
-          width: "100%",
-          maxWidth: "100%",
-          alignItems: "stretch",
-        }}
-      >
-        {/* Total Expenses */}
-        <Paper
-          sx={{
-            flex: 1,
-            p: 1.25,
-            minHeight: 120,
-            bgcolor: colors.primary[400],
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
+      <Stack direction="row" spacing={1.5} mb={2} sx={{ width: "100%", alignItems: "stretch" }}>
+        <Paper sx={{ flex: 1, p: 1.25, minHeight: 120, bgcolor: colors.primary[400], display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Box textAlign="center">
-            <Typography
-              variant="subtitle2"
-              color={colors.grey[200]}
-              fontWeight="600"
-              sx={{ mb: "2px" }}
-            >
+            <Typography variant="subtitle2" color={colors.grey[200]} fontWeight="600" sx={{ mb: "2px" }}>
               Total Expenses
             </Typography>
-            <Typography
-              variant="h4"
-              fontWeight="bold"
-              color={colors.greenAccent[500]}
-              sx={{ lineHeight: 1.1 }}
-            >
-              {summaryData.total} ฿
+            <Typography variant="h4" fontWeight="bold" color={colors.greenAccent[500]} sx={{ lineHeight: 1.1 }}>
+              {fmtMoney(cards.total_expenses)} ฿
             </Typography>
             <Typography variant="caption" color={colors.grey[300]}>
-              Monthly Spending
-            </Typography>
-            <Typography
-              variant="caption"
-              color={colors.redAccent[300]}
-              sx={{ display: "block", mt: "2px" }}
-            >
-              ▲ +8.2% from last month
+              Total Spending (filtered)
             </Typography>
           </Box>
         </Paper>
 
-        {/* Top Category */}
-        <Paper
-          sx={{
-            flex: 1,
-            p: 1.25,
-            minHeight: 120,
-            bgcolor: colors.primary[400],
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
+        <Paper sx={{ flex: 1, p: 1.25, minHeight: 120, bgcolor: colors.primary[400], display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Box textAlign="center">
-            <Typography
-              variant="subtitle2"
-              color={colors.grey[200]}
-              fontWeight="600"
-              sx={{ mb: "2px" }}
-            >
+            <Typography variant="subtitle2" color={colors.grey[200]} fontWeight="600" sx={{ mb: "2px" }}>
               Top Category
             </Typography>
-            <Typography
-              variant="h5"
-              fontWeight="bold"
-              color={colors.greenAccent[400]}
-              sx={{ lineHeight: 1.1 }}
-            >
-              {summaryData.topCategory}
+            <Typography variant="h5" fontWeight="bold" color={colors.greenAccent[400]} sx={{ lineHeight: 1.1 }}>
+              {cards.top_category || "Others"}
             </Typography>
             <Typography variant="caption" color={colors.grey[300]}>
-              Most Spending Category
-            </Typography>
-            <Typography
-              variant="caption"
-              color={colors.redAccent[300]}
-              sx={{ display: "block", mt: "2px" }}
-            >
-              ▲ 38% of total expense
+              Highest spending category
             </Typography>
           </Box>
         </Paper>
 
-        {/* Top Bank */}
-        <Paper
-          sx={{
-            flex: 1,
-            p: 1.25,
-            minHeight: 120,
-            bgcolor: colors.primary[400],
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
+        <Paper sx={{ flex: 1, p: 1.25, minHeight: 120, bgcolor: colors.primary[400], display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Box textAlign="center">
-            <Typography
-              variant="subtitle2"
-              color={colors.grey[200]}
-              fontWeight="600"
-              sx={{ mb: "2px" }}
-            >
+            <Typography variant="subtitle2" color={colors.grey[200]} fontWeight="600" sx={{ mb: "2px" }}>
               Top Bank
             </Typography>
-            <Typography
-              variant="h4"
-              fontWeight="bold"
-              color={colors.greenAccent[400]}
-              sx={{ lineHeight: 1.1 }}
-            >
-              {summaryData.topBank}
+            <Typography variant="h4" fontWeight="bold" color={colors.greenAccent[400]} sx={{ lineHeight: 1.1 }}>
+              {cards.top_bank || "-"}
             </Typography>
             <Typography variant="caption" color={colors.grey[300]}>
-              Most Transactions
-            </Typography>
-            <Typography
-              variant="caption"
-              color={colors.greenAccent[300]}
-              sx={{ display: "block", mt: "2px" }}
-            >
-              ▼ -5% from last month
+              Highest spending bank
             </Typography>
           </Box>
         </Paper>
 
-        {/* Total Transactions */}
-        <Paper
-          sx={{
-            flex: 1,
-            p: 1.25,
-            minHeight: 120,
-            bgcolor: colors.primary[400],
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
+        <Paper sx={{ flex: 1, p: 1.25, minHeight: 120, bgcolor: colors.primary[400], display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Box textAlign="center">
-            <Typography
-              variant="subtitle2"
-              color={colors.grey[200]}
-              fontWeight="600"
-              sx={{ mb: "2px" }}
-            >
+            <Typography variant="subtitle2" color={colors.grey[200]} fontWeight="600" sx={{ mb: "2px" }}>
               Total Transactions
             </Typography>
-            <Typography
-              variant="h4"
-              fontWeight="bold"
-              color={colors.greenAccent[400]}
-              sx={{ lineHeight: 1.1 }}
-            >
-              {summaryData.totalTransactions}
+            <Typography variant="h4" fontWeight="bold" color={colors.greenAccent[400]} sx={{ lineHeight: 1.1 }}>
+              {cards.total_transactions ?? 0}
             </Typography>
             <Typography variant="caption" color={colors.grey[300]}>
-              Transactions This Month
-            </Typography>
-            <Typography
-              variant="caption"
-              color={colors.greenAccent[300]}
-              sx={{ display: "block", mt: "2px" }}
-            >
-              ▼ -12% from last month
+              Slips uploaded (filtered)
             </Typography>
           </Box>
         </Paper>
@@ -344,69 +289,29 @@ const StatisticalInformations = () => {
       {/* Charts Section */}
       <Stack direction="row" spacing={2} mb={2} sx={{ height: "360px" }}>
         {/* Line Chart */}
-        <Paper
-          sx={{
-            flex: 2,
-            p: 2,
-            bgcolor: colors.primary[400],
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
+        <Paper sx={{ flex: 2, p: 2, bgcolor: colors.primary[400], display: "flex", flexDirection: "column" }}>
           <Typography mb={1.5} fontWeight="600">
             Expenses Over Time
           </Typography>
 
           <ResponsiveLine
-            data={filterType === "year" ? lineDataYear : lineDataMonth}
+            data={lineData}
             theme={{
               axis: {
-                domain: {
-                  line: {
-                    stroke: colors.grey[100],
-                  },
-                },
-                ticks: {
-                  line: {
-                    stroke: colors.grey[100],
-                    strokeWidth: 1,
-                  },
-                  text: {
-                    fill: colors.grey[100],
-                  },
-                },
-                legend: {
-                  text: {
-                    fill: colors.grey[100],
-                  },
-                },
+                domain: { line: { stroke: colors.grey[100] } },
+                ticks: { line: { stroke: colors.grey[100], strokeWidth: 1 }, text: { fill: colors.grey[100] } },
+                legend: { text: { fill: colors.grey[100] } },
               },
-              tooltip: {
-                container: {
-                  color: colors.primary[500],
-                },
-              },
+              tooltip: { container: { color: colors.primary[500] } },
             }}
             margin={{ top: 30, right: 40, bottom: 60, left: 60 }}
             xScale={{ type: "point" }}
-            yScale={{
-              type: "linear",
-              min: 0,
-              max: "auto",
-            }}
+            yScale={{ type: "linear", min: 0, max: "auto" }}
             curve="catmullRom"
             axisTop={null}
             axisRight={null}
-            axisBottom={{
-              tickRotation: -45,
-              tickPadding: 8,
-              tickSize: 0,
-            }}
-            axisLeft={{
-              legend: "Amount (฿)",
-              legendPosition: "middle",
-              legendOffset: -40,
-            }}
+            axisBottom={{ tickRotation: -45, tickPadding: 8, tickSize: 0 }}
+            axisLeft={{ legend: "Amount (฿)", legendPosition: "middle", legendOffset: -40 }}
             colors={{ scheme: "nivo" }}
             pointSize={8}
             pointColor={{ theme: "background" }}
@@ -421,15 +326,7 @@ const StatisticalInformations = () => {
         </Paper>
 
         {/* Pie / Donut Chart */}
-        <Paper
-          sx={{
-            flex: 1,
-            p: 2,
-            bgcolor: colors.primary[400],
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
+        <Paper sx={{ flex: 1, p: 2, bgcolor: colors.primary[400], display: "flex", flexDirection: "column" }}>
           <Typography mb={1.5} fontWeight="600">
             Bank Distribution
           </Typography>
@@ -437,16 +334,8 @@ const StatisticalInformations = () => {
           <ResponsivePie
             data={pieData}
             theme={{
-              legends: {
-                text: {
-                  fill: colors.grey[100],
-                },
-              },
-              tooltip: {
-                container: {
-                  color: colors.primary[500],
-                },
-              },
+              legends: { text: { fill: colors.grey[100] } },
+              tooltip: { container: { color: colors.primary[500] } },
             }}
             margin={{ top: 20, right: 20, bottom: 70, left: 20 }}
             innerRadius={0.5}
@@ -455,41 +344,26 @@ const StatisticalInformations = () => {
             activeOuterRadiusOffset={8}
             colors={{ scheme: "set2" }}
             borderWidth={1}
-            borderColor={{
-              from: "color",
-              modifiers: [["darker", 0.2]],
-            }}
-            /* Labels */
+            borderColor={{ from: "color", modifiers: [["darker", 0.2]] }}
             enableArcLabels={false}
             arcLinkLabelsSkipAngle={10}
             arcLinkLabelsTextColor={colors.grey[100]}
             arcLinkLabelsThickness={2}
             arcLinkLabelsColor={{ from: "color" }}
-            /* Interaction */
             useMesh={true}
             legends={[
               {
                 anchor: "bottom",
                 direction: "row",
-                justify: false,
-                translateX: 0,
                 translateY: 50,
                 itemsSpacing: 10,
                 itemWidth: 90,
                 itemHeight: 18,
                 itemTextColor: colors.grey[100],
-                itemDirection: "left-to-right",
                 itemOpacity: 0.85,
                 symbolSize: 12,
                 symbolShape: "circle",
-                effects: [
-                  {
-                    on: "hover",
-                    style: {
-                      itemOpacity: 1,
-                    },
-                  },
-                ],
+                effects: [{ on: "hover", style: { itemOpacity: 1 } }],
               },
             ]}
           />
@@ -508,12 +382,7 @@ const StatisticalInformations = () => {
           borderRadius: 2,
         }}
       >
-        <Typography
-          mb={2}
-          fontWeight="600"
-          variant="h6"
-          color={colors.grey[100]}
-        >
+        <Typography mb={2} fontWeight="600" variant="h6" color={colors.grey[100]}>
           Category Expenses
         </Typography>
 
@@ -522,26 +391,9 @@ const StatisticalInformations = () => {
           layout="horizontal"
           theme={{
             axis: {
-              domain: {
-                line: {
-                  stroke: colors.grey[300],
-                },
-              },
-              ticks: {
-                line: {
-                  stroke: colors.grey[300],
-                },
-                text: {
-                  fill: colors.grey[200],
-                  fontSize: 12,
-                },
-              },
-              legend: {
-                text: {
-                  fill: colors.grey[200],
-                  fontSize: 13,
-                },
-              },
+              domain: { line: { stroke: colors.grey[300] } },
+              ticks: { line: { stroke: colors.grey[300] }, text: { fill: colors.grey[200], fontSize: 12 } },
+              legend: { text: { fill: colors.grey[200], fontSize: 13 } },
             },
             tooltip: {
               container: {
@@ -559,14 +411,10 @@ const StatisticalInformations = () => {
           padding={0.35}
           valueScale={{ type: "linear" }}
           indexScale={{ type: "band", round: true }}
-          /* 🎨 สีคนละแท่ง */
           colors={{ scheme: "set2" }}
           colorBy="indexValue"
           borderRadius={8}
-          borderColor={{
-            from: "color",
-            modifiers: [["darker", 1.4]],
-          }}
+          borderColor={{ from: "color", modifiers: [["darker", 1.4]] }}
           axisTop={null}
           axisRight={null}
           axisBottom={{
@@ -576,10 +424,7 @@ const StatisticalInformations = () => {
             tickSize: 0,
             tickPadding: 8,
           }}
-          axisLeft={{
-            tickSize: 0,
-            tickPadding: 10,
-          }}
+          axisLeft={{ tickSize: 0, tickPadding: 10 }}
           enableLabel={false}
           enableGridX={false}
           enableGridY={false}

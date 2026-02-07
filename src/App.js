@@ -17,7 +17,7 @@ import { ColorModeContext, useMode } from "./theme";
 import Calendar from "./scenes/calendar/calendar";
 import SlipResult from "./scenes/slipUpload/SlipResult";
 
-// ✅ เพิ่มหน้า Login/Register (สร้างไฟล์ตาม path นี้)
+
 import Login from "./scenes/auth/Login";
 import Register from "./scenes/auth/Register";
 
@@ -25,7 +25,7 @@ function App() {
   const [theme, colorMode] = useMode();
   const [isSidebar, setIsSidebar] = useState(true);
 
-  // ✅ mock auth: เช็คว่ามี user ใน localStorage ไหม
+
   const [isLogin, setIsLogin] = useState(
     Boolean(localStorage.getItem("mock_user"))
   );
@@ -35,7 +35,7 @@ function App() {
       <ThemeProvider theme={theme}>
         <CssBaseline />
 
-        {/* ✅ ยังไม่ Login: แสดงเฉพาะหน้า Login/Register (ไม่มี Sidebar/Topbar) */}
+
         {!isLogin && (
           <Routes>
             <Route path="/login" element={<Login setIsLogin={setIsLogin} />} />
@@ -45,7 +45,7 @@ function App() {
           </Routes>
         )}
 
-        {/* ✅ Login แล้ว: แสดง Layout เดิมทั้งหมด */}
+   
         {isLogin && (
           <div className="app">
             <Sidebar isSidebar={isSidebar} />

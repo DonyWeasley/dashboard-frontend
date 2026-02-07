@@ -27,6 +27,8 @@ import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import CloudOutlinedIcon from "@mui/icons-material/CloudOutlined";
 import { tokens } from "../../theme";
 
+const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
+
 export default function Register() {
   const nav = useNavigate();
   const theme = useTheme();
@@ -39,12 +41,16 @@ export default function Register() {
     confirmPassword: "",
   });
   const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
   const [showPw, setShowPw] = useState(false);
   const [showConfirmPw, setShowConfirmPw] = useState(false);
 
   const onChange = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
 
-  const onSubmit = (e) => {
+
+  const mismatch = !!(form.password || form.confirmPassword) && form.password !== form.confirmPassword;
+
+  const onSubmit = async (e) => {
     e.preventDefault();
     setErr("");
 
@@ -56,27 +62,45 @@ export default function Register() {
 
       if (!name) throw new Error("Please enter your name");
       if (!email) throw new Error("Please enter your email");
+      if (!password) throw new Error("Please enter your password");
 
-      // ✅ ถ้าเริ่มกรอกรหัสผ่านแล้ว ต้องให้ตรงกัน
       if ((password || confirm) && password !== confirm) {
         throw new Error("Passwords do not match");
       }
 
-      const accounts = JSON.parse(localStorage.getItem("mock_accounts") || "[]");
-      const exists = accounts.some((a) => a.email === email);
-      if (exists) throw new Error("This email is already registered");
+      setLoading(true);
 
-      accounts.push({
-        name,
-        email,
-        password, // mock
-        createdAt: new Date().toISOString(),
+      const payload = {
+        username: name,
+        password: password,
+        email: email,
+      };
+
+      const res = await fetch(`${API_BASE}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
 
-      localStorage.setItem("mock_accounts", JSON.stringify(accounts));
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        const text = await res.text();
+        try {
+          const j = JSON.parse(text);
+          msg = j?.detail || j?.message || text || msg;
+        } catch {
+          msg = text || msg;
+        }
+        throw new Error(msg);
+      }
+
+
       nav("/login");
+
     } catch (ex) {
       setErr(ex?.message || "Register failed");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -117,8 +141,6 @@ export default function Register() {
     boxShadow: "0 14px 40px rgba(0,0,0,0.16)",
   };
 
-  const mismatch = !!(form.password || form.confirmPassword) && form.password !== form.confirmPassword;
-
   return (
     <Box
       sx={{
@@ -135,7 +157,7 @@ export default function Register() {
                      linear-gradient(180deg, ${colors.primary[600]} 0%, ${colors.primary[700]} 100%)`,
       }}
     >
-      {/* subtle grid pattern overlay */}
+      {/* overlay grid */}
       <Box
         aria-hidden
         sx={{
@@ -152,35 +174,9 @@ export default function Register() {
         }}
       />
 
-      {/* glow blobs */}
-      <Box
-        aria-hidden
-        sx={{
-          position: "absolute",
-          width: 520,
-          height: 520,
-          left: -120,
-          top: -140,
-          borderRadius: "50%",
-          background: `${colors.greenAccent[500]}22`,
-          filter: "blur(40px)",
-          pointerEvents: "none",
-        }}
-      />
-      <Box
-        aria-hidden
-        sx={{
-          position: "absolute",
-          width: 560,
-          height: 560,
-          right: -160,
-          bottom: -160,
-          borderRadius: "50%",
-          background: `${colors.primary[400]}55`,
-          filter: "blur(50px)",
-          pointerEvents: "none",
-        }}
-      />
+      {/* blobs */}
+      <Box aria-hidden sx={{ position: "absolute", width: 520, height: 520, left: -120, top: -140, borderRadius: "50%", background: `${colors.greenAccent[500]}22`, filter: "blur(40px)", pointerEvents: "none" }} />
+      <Box aria-hidden sx={{ position: "absolute", width: 560, height: 560, right: -160, bottom: -160, borderRadius: "50%", background: `${colors.primary[400]}55`, filter: "blur(50px)", pointerEvents: "none" }} />
 
       <Paper
         elevation={0}
@@ -195,14 +191,8 @@ export default function Register() {
           boxShadow: "0 24px 80px rgba(0,0,0,0.28)",
         }}
       >
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "1.05fr 0.95fr" },
-            minHeight: { xs: "auto", md: 600 },
-          }}
-        >
-          {/* LEFT: Hero */}
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1.05fr 0.95fr" }, minHeight: { xs: "auto", md: 600 } }}>
+          {/* LEFT */}
           <Box
             sx={{
               p: { xs: 3, md: 4 },
@@ -222,9 +212,10 @@ export default function Register() {
                   </Typography>
                 </Stack>
 
+                {/* เปลี่ยน label ให้ตรงความจริง */}
                 <Chip
                   icon={<AutoAwesomeOutlinedIcon />}
-                  label="Mock Register"
+                  label="Backend Register"
                   sx={{
                     fontWeight: 900,
                     px: 0.8,
@@ -237,90 +228,36 @@ export default function Register() {
                 />
               </Box>
 
-              {/* trust chips */}
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                <Chip
-                  icon={<ShieldOutlinedIcon />}
-                  label="Saved locally"
-                  sx={{
-                    borderRadius: 999,
-                    backgroundColor: `${colors.primary[500]}55`,
-                    color: colors.grey[100],
-                    border: `1px solid ${colors.primary[500]}66`,
-                    "& .MuiChip-icon": { color: colors.greenAccent[400] },
-                  }}
-                />
-                <Chip
-                  icon={<BoltOutlinedIcon />}
-                  label="Fast setup"
-                  sx={{
-                    borderRadius: 999,
-                    backgroundColor: `${colors.primary[500]}55`,
-                    color: colors.grey[100],
-                    border: `1px solid ${colors.primary[500]}66`,
-                    "& .MuiChip-icon": { color: colors.greenAccent[400] },
-                  }}
-                />
-                <Chip
-                  icon={<CloudOutlinedIcon />}
-                  label="Ready for backend"
-                  sx={{
-                    borderRadius: 999,
-                    backgroundColor: `${colors.primary[500]}55`,
-                    color: colors.grey[100],
-                    border: `1px solid ${colors.primary[500]}66`,
-                    "& .MuiChip-icon": { color: colors.greenAccent[400] },
-                  }}
-                />
+                <Chip icon={<ShieldOutlinedIcon />} label="Stored in DB" sx={{ borderRadius: 999, backgroundColor: `${colors.primary[500]}55`, color: colors.grey[100], border: `1px solid ${colors.primary[500]}66`, "& .MuiChip-icon": { color: colors.greenAccent[400] } }} />
+                <Chip icon={<BoltOutlinedIcon />} label="Fast setup" sx={{ borderRadius: 999, backgroundColor: `${colors.primary[500]}55`, color: colors.grey[100], border: `1px solid ${colors.primary[500]}66`, "& .MuiChip-icon": { color: colors.greenAccent[400] } }} />
+                <Chip icon={<CloudOutlinedIcon />} label="Ready for login" sx={{ borderRadius: 999, backgroundColor: `${colors.primary[500]}55`, color: colors.grey[100], border: `1px solid ${colors.primary[500]}66`, "& .MuiChip-icon": { color: colors.greenAccent[400] } }} />
               </Stack>
 
-              {/* feature cards */}
               <Stack spacing={1.5} sx={{ mt: 1 }}>
                 <Box sx={featureCardSx}>
-                  <Typography fontWeight={900} color={colors.grey[100]}>
-                    ✅ One account, all slips
-                  </Typography>
+                  <Typography fontWeight={900} color={colors.grey[100]}>✅ One account, all slips</Typography>
                   <Typography variant="body2" color={colors.grey[200]} sx={{ opacity: 0.88, mt: 0.5 }}>
                     Keep your uploads and results organized under your profile.
                   </Typography>
                 </Box>
-
                 <Box sx={featureCardSx}>
-                  <Typography fontWeight={900} color={colors.grey[100]}>
-                    ✅ Smooth demo experience
-                  </Typography>
+                  <Typography fontWeight={900} color={colors.grey[100]}>✅ Smooth demo experience</Typography>
                   <Typography variant="body2" color={colors.grey[200]} sx={{ opacity: 0.88, mt: 0.5 }}>
                     Perfect for showcasing UI/UX while backend is still in progress.
                   </Typography>
                 </Box>
-
                 <Box sx={featureCardSx}>
-                  <Typography fontWeight={900} color={colors.grey[100]}>
-                    ✅ Upgrade later
-                  </Typography>
+                  <Typography fontWeight={900} color={colors.grey[100]}>✅ Upgrade later</Typography>
                   <Typography variant="body2" color={colors.grey[200]} sx={{ opacity: 0.88, mt: 0.5 }}>
                     You can replace localStorage with real API anytime.
                   </Typography>
                 </Box>
               </Stack>
-
-              <Box
-                sx={{
-                  mt: 0.5,
-                  p: 2,
-                  borderRadius: 2.5,
-                  border: `1px dashed ${colors.primary[500]}aa`,
-                  backgroundColor: `${colors.primary[500]}33`,
-                }}
-              >
-                <Typography variant="body2" color={colors.grey[200]} sx={{ opacity: 0.95 }}>
-                  Tip: If you set a password, confirm it to avoid typos.
-                </Typography>
-              </Box>
             </Stack>
           </Box>
 
-          {/* RIGHT: Form */}
+          {/* RIGHT */}
           <Box sx={{ p: { xs: 3, md: 4 } }}>
             <Stack spacing={2.2}>
               <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
@@ -328,10 +265,10 @@ export default function Register() {
                   Register
                 </Typography>
 
-                <Tooltip title="Frontend-only mock register (localStorage)" arrow>
+                <Tooltip title="Register via backend /auth/register" arrow>
                   <Chip
                     icon={<InfoOutlinedIcon />}
-                    label="Demo mode"
+                    label="API mode"
                     size="small"
                     sx={{
                       borderRadius: 999,
@@ -377,7 +314,7 @@ export default function Register() {
                 />
 
                 <TextField
-                  label="Email"
+                  label="Email (used as username)"
                   value={form.email}
                   onChange={onChange("email")}
                   required
@@ -393,7 +330,7 @@ export default function Register() {
                 />
 
                 <TextField
-                  label="Password (mock)"
+                  label="Password"
                   type={showPw ? "text" : "password"}
                   value={form.password}
                   onChange={onChange("password")}
@@ -411,10 +348,7 @@ export default function Register() {
                           onClick={() => setShowPw((v) => !v)}
                           edge="end"
                           aria-label="toggle password visibility"
-                          sx={{
-                            color: colors.grey[300],
-                            "&:hover": { backgroundColor: `${colors.primary[500]}66` },
-                          }}
+                          sx={{ color: colors.grey[300], "&:hover": { backgroundColor: `${colors.primary[500]}66` } }}
                         >
                           {showPw ? <VisibilityOffOutlinedIcon fontSize="small" /> : <VisibilityOutlinedIcon fontSize="small" />}
                         </IconButton>
@@ -424,7 +358,7 @@ export default function Register() {
                 />
 
                 <TextField
-                  label="Confirm Password (mock)"
+                  label="Confirm Password"
                   type={showConfirmPw ? "text" : "password"}
                   value={form.confirmPassword}
                   onChange={onChange("confirmPassword")}
@@ -433,9 +367,7 @@ export default function Register() {
                     ...textFieldSx,
                     ...(mismatch
                       ? {
-                          "& .MuiOutlinedInput-notchedOutline": {
-                            borderColor: `${colors.redAccent[500]}cc`,
-                          },
+                          "& .MuiOutlinedInput-notchedOutline": { borderColor: `${colors.redAccent[500]}cc` },
                           "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": {
                             borderColor: `${colors.redAccent[500]}`,
                           },
@@ -444,9 +376,7 @@ export default function Register() {
                   }}
                   error={mismatch}
                   helperText={mismatch ? "Passwords do not match" : " "}
-                  FormHelperTextProps={{
-                    sx: { color: mismatch ? colors.redAccent[300] : `${colors.grey[400]}cc` },
-                  }}
+                  FormHelperTextProps={{ sx: { color: mismatch ? colors.redAccent[300] : `${colors.grey[400]}cc` } }}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -459,16 +389,9 @@ export default function Register() {
                           onClick={() => setShowConfirmPw((v) => !v)}
                           edge="end"
                           aria-label="toggle confirm password visibility"
-                          sx={{
-                            color: colors.grey[300],
-                            "&:hover": { backgroundColor: `${colors.primary[500]}66` },
-                          }}
+                          sx={{ color: colors.grey[300], "&:hover": { backgroundColor: `${colors.primary[500]}66` } }}
                         >
-                          {showConfirmPw ? (
-                            <VisibilityOffOutlinedIcon fontSize="small" />
-                          ) : (
-                            <VisibilityOutlinedIcon fontSize="small" />
-                          )}
+                          {showConfirmPw ? <VisibilityOffOutlinedIcon fontSize="small" /> : <VisibilityOutlinedIcon fontSize="small" />}
                         </IconButton>
                       </InputAdornment>
                     ),
@@ -479,7 +402,7 @@ export default function Register() {
                   type="submit"
                   variant="contained"
                   size="large"
-                  disabled={mismatch}
+                  disabled={mismatch || loading}
                   sx={{
                     borderRadius: 2.2,
                     py: 1.2,
@@ -495,7 +418,7 @@ export default function Register() {
                     },
                   }}
                 >
-                  Create account
+                  {loading ? "Creating..." : "Create account"}
                 </Button>
 
                 <Divider sx={{ borderColor: `${colors.primary[500]}aa`, opacity: 0.9 }} />
@@ -514,17 +437,6 @@ export default function Register() {
                   >
                     Login
                   </Box>
-                </Typography>
-
-                <Typography
-                  variant="caption"
-                  sx={{ opacity: 0.78, lineHeight: 1.6 }}
-                  textAlign="center"
-                  color={colors.grey[300]}
-                >
-                  * Frontend-only mock register: saved in your browser (localStorage).
-                  <br />
-                  Password is optional in demo mode (but if you type it, confirm must match).
                 </Typography>
               </Stack>
             </Stack>

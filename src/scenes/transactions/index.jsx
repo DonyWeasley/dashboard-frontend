@@ -6,15 +6,15 @@ import {
   TextField,
   MenuItem,
   Stack,
+  Alert,
 } from "@mui/material";
 import { DataGrid, GridToolbar } from "@mui/x-data-grid";
 import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
-import mockTransactions2 from "../../data/mockTransactions2";
 import InputAdornment from "@mui/material/InputAdornment";
 import SearchIcon from "@mui/icons-material/Search";
 import Header from "../../components/Header";
 import { tokens } from "../../theme";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 /* -------- MONTH OPTIONS -------- */
 const months = [
@@ -32,14 +32,21 @@ const months = [
   { value: "12", label: "December" },
 ];
 
+const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
+
 const Transactions = () => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
 
   const [searchBank, setSearchBank] = useState("");
-  const [filterType, setFilterType] = useState("month"); // all | month | year
+  const [filterType, setFilterType] = useState("all"); 
   const [month, setMonth] = useState("01");
   const [year, setYear] = useState("2026");
+
+
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
 
   /* -------- COLUMNS -------- */
   const columns = [
@@ -63,10 +70,9 @@ const Transactions = () => {
       field: "amount",
       headerName: "Amount (฿)",
       flex: 1,
-      
       renderCell: (params) => (
         <Typography color={colors.greenAccent[300]}>
-          {params.value.toLocaleString()}
+          {(params.value ?? 0).toLocaleString()}
         </Typography>
       ),
     },
@@ -75,24 +81,78 @@ const Transactions = () => {
     { field: "category", headerName: "Category", flex: 1 },
   ];
 
-  /* -------- FILTER LOGIC -------- */
-  const filteredRows = mockTransactions2.filter((row) => {
-    if (!row.bank.toLowerCase().includes(searchBank.toLowerCase())) {
-      return false;
-    }
-
-    if (filterType === "all") return true;
-
-    if (filterType === "year") {
-      return row.date.startsWith(year);
-    }
+  const queryString = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set("range", filterType);
 
     if (filterType === "month") {
-      return row.date.startsWith(`${year}-${month}`);
+      params.set("year", year);
+      params.set("month", String(parseInt(month, 10))); 
+    }
+    if (filterType === "year") {
+      params.set("year", year);
+    }
+    if (searchBank.trim()) {
+      params.set("bank", searchBank.trim());
     }
 
-    return true;
-  });
+  
+    params.set("page", "1");
+    params.set("page_size", "100"); 
+
+    return params.toString();
+  }, [filterType, year, month, searchBank]);
+
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      setErr("");
+      try {
+        const token =
+          localStorage.getItem("token") || sessionStorage.getItem("token");
+
+        const res = await fetch(`${API_BASE}/transactions/?${queryString}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || `HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+
+        const toAbsUrl = (p) => {
+        if (!p) return "";
+        if (p.startsWith("http://") || p.startsWith("https://")) return p;
+        if (p.startsWith("/")) return `${API_BASE}${p}`;
+        return `${API_BASE}/${p}`;
+      };
+
+
+
+        const mapped = (data.rows || []).map((x) => ({
+          id: x.id, 
+          qr: toAbsUrl(x.qr),
+          bank: x.bank || "-",
+          amount: x.amount ?? 0,
+          date: x.date || "-",
+          time: x.time || "-",
+          category: x.category || "Others",
+        }));
+
+        setRows(mapped);
+      } catch (e) {
+        setErr(e?.message || "Failed to load transactions");
+        setRows([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [queryString]);
 
   return (
     <Box m="20px" display="flex" flexDirection="column" height="100%">
@@ -136,6 +196,22 @@ const Transactions = () => {
             <MenuItem value="year">By Year</MenuItem>
           </TextField>
 
+          {/* Year */}
+          {filterType !== "all" && (
+            <TextField
+              select
+              size="small"
+              label="Year"
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
+              sx={{ width: 120 }}
+            >
+              <MenuItem value="2024">2024</MenuItem>
+              <MenuItem value="2025">2025</MenuItem>
+              <MenuItem value="2026">2026</MenuItem>
+            </TextField>
+          )}
+
           {/* Month */}
           {filterType === "month" && (
             <TextField
@@ -151,22 +227,6 @@ const Transactions = () => {
                   {m.label}
                 </MenuItem>
               ))}
-            </TextField>
-          )}
-
-          {/* Year */}
-          {filterType !== "all" && (
-            <TextField
-              select
-              size="small"
-              label="Year"
-              value={year}
-              onChange={(e) => setYear(e.target.value)}
-              sx={{ width: 120 }}
-            >
-              <MenuItem value="2024">2024</MenuItem>
-              <MenuItem value="2025">2025</MenuItem>
-              <MenuItem value="2026">2026</MenuItem>
             </TextField>
           )}
         </Stack>
@@ -186,13 +246,18 @@ const Transactions = () => {
         </IconButton>
       </Stack>
 
+      {/* ✅ Loading / Error */}
+      {err && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {err}
+        </Alert>
+      )}
+
       {/* -------- TABLE -------- */}
       <Box
         sx={{
-          height: "70vh", // ⭐ ใส่ค่าจริง
-          "& .MuiDataGrid-root": {
-            border: "none",
-          },
+          height: "70vh",
+          "& .MuiDataGrid-root": { border: "none" },
           "& .MuiDataGrid-columnHeaders": {
             backgroundColor: colors.blueAccent[700],
             borderBottom: "none",
@@ -210,9 +275,10 @@ const Transactions = () => {
         }}
       >
         <DataGrid
-          rows={filteredRows}
+          rows={rows}
           columns={columns}
           components={{ Toolbar: GridToolbar }}
+          loading={loading}
         />
       </Box>
     </Box>
