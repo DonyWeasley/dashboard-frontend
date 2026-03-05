@@ -1,9 +1,13 @@
-import { useState } from "react";
-import { Routes, Route } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
+import { Box, CssBaseline, ThemeProvider, Container, useMediaQuery } from "@mui/material";
+
 import Topbar from "./scenes/global/Topbar";
 import Sidebar from "./scenes/global/Sidebar";
+
 import Dashboard from "./scenes/dashboard";
 import SlipUpload from "./scenes/slipUpload";
+import SlipResult from "./scenes/slipUpload/SlipResult";
 import Invoices from "./scenes/invoices";
 import Transactions from "./scenes/transactions";
 import Bar from "./scenes/bar";
@@ -12,73 +16,124 @@ import Line from "./scenes/line";
 import Pie from "./scenes/pie";
 import FAQ from "./scenes/faq";
 import Geography from "./scenes/geography";
-import { CssBaseline, ThemeProvider } from "@mui/material";
-import { ColorModeContext, useMode } from "./theme";
 import Calendar from "./scenes/calendar/calendar";
-import SlipResult from "./scenes/slipUpload/SlipResult";
-
 
 import Login from "./scenes/auth/Login";
 import Register from "./scenes/auth/Register";
-import AlbumCategoryPage from "./albumCategory/AlbumCategory";
-import CategoryDetailPage from "./albumCategory/CategoryDetail";
+
+import { ColorModeContext, useMode } from "./theme";
 
 function App() {
   const [theme, colorMode] = useMode();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+
+ 
   const [isSidebar, setIsSidebar] = useState(true);
 
+ 
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  const [isLogin, setIsLogin] = useState(
-    Boolean(localStorage.getItem("mock_user"))
+ 
+  useEffect(() => {
+    
+    setMobileOpen(false);
+
+    
+    if (isMobile) {
+      setIsSidebar(false);
+    } else {
+      setIsSidebar(true);
+    }
+  }, [isMobile]);
+
+  const [isLogin, setIsLogin] = useState(Boolean(localStorage.getItem("mock_user")));
+
+  
+  const AppLayout = ({ children }) => (
+    <Box sx={{ display: "flex", minHeight: "100dvh" }}>
+      <Sidebar
+        isSidebar={isSidebar}
+        isMobile={isMobile}
+        mobileOpen={mobileOpen}
+        onMobileClose={() => setMobileOpen(false)}
+      />
+
+      <Box component="main" sx={{ flex: 1, minWidth: 0 }}>
+        <Topbar
+          isMobile={isMobile}
+          setIsLogin={setIsLogin}
+          
+          setIsSidebar={setIsSidebar}
+         
+          onOpenSidebar={() => setMobileOpen(true)}
+        />
+
+        <Box sx={{ px: { xs: 2, sm: 3, md: 4 }, py: { xs: 2, sm: 3 } }}>
+          <Container maxWidth="xl" disableGutters>
+            {children}
+          </Container>
+        </Box>
+      </Box>
+    </Box>
   );
+
+
+  const AuthLayout = ({ children }) => <Box sx={{ minHeight: "100dvh" }}>{children}</Box>;
 
   return (
     <ColorModeContext.Provider value={colorMode}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
 
+        <Routes>
+          {/* ===== Auth routes ===== */}
+          {!isLogin && (
+            <>
+              <Route
+                path="/login"
+                element={
+                  <AuthLayout>
+                    <Login setIsLogin={setIsLogin} />
+                  </AuthLayout>
+                }
+              />
+              <Route
+                path="/register"
+                element={
+                  <AuthLayout>
+                    <Register />
+                  </AuthLayout>
+                }
+              />
+              <Route path="*" element={<Navigate to="/login" replace />} />
+            </>
+          )}
 
-        {!isLogin && (
-          <Routes>
-            <Route path="/login" element={<Login setIsLogin={setIsLogin} />} />
-            <Route path="/register" element={<Register />} />
-            {/* เข้า path อื่นๆ ให้เด้งมา login */}
-            <Route path="*" element={<Login setIsLogin={setIsLogin} />} />
-          </Routes>
-        )}
+          {/* ===== App routes ===== */}
+          {isLogin && (
+            <>
+              <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
+              <Route path="/slip-upload" element={<AppLayout><SlipUpload /></AppLayout>} />
+              <Route path="/slip/result" element={<AppLayout><SlipResult /></AppLayout>} />
+              <Route path="/transactions" element={<AppLayout><Transactions /></AppLayout>} />
+              <Route path="/invoices" element={<AppLayout><Invoices /></AppLayout>} />
+              <Route path="/form" element={<AppLayout><Form /></AppLayout>} />
+              <Route path="/bar" element={<AppLayout><Bar /></AppLayout>} />
+              <Route path="/pie" element={<AppLayout><Pie /></AppLayout>} />
+              <Route path="/line" element={<AppLayout><Line /></AppLayout>} />
+              <Route path="/faq" element={<AppLayout><FAQ /></AppLayout>} />
+              <Route path="/calendar" element={<AppLayout><Calendar /></AppLayout>} />
+              <Route path="/geography" element={<AppLayout><Geography /></AppLayout>} />
 
-   
-        {isLogin && (
-          <div className="app">
-            <Sidebar isSidebar={isSidebar} />
-            <main className="content">
-              {/* ส่ง setIsLogin ไป Topbar เพื่อทำปุ่ม Logout ได้ */}
-              <Topbar setIsSidebar={setIsSidebar} setIsLogin={setIsLogin} />
+              {}
+              <Route path="/login" element={<Navigate to="/" replace />} />
+              <Route path="/register" element={<Navigate to="/" replace />} />
 
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/slip-upload" element={<SlipUpload />} />
-                <Route path="/slip/result" element={<SlipResult />} />
-                <Route path="/transactions" element={<Transactions />} />
-                <Route path="/invoices" element={<Invoices />} />
-                <Route path="/form" element={<Form />} />
-                <Route path="/bar" element={<Bar />} />
-                <Route path="/pie" element={<Pie />} />
-                <Route path="/line" element={<Line />} />
-                <Route path="/faq" element={<FAQ />} />
-                <Route path="/calendar" element={<Calendar />} />
-                <Route path="/geography" element={<Geography />} />
-
-                {/* ถ้าเข้า /login หรือ /register ตอน login แล้ว ให้กลับหน้าแรก */}
-                <Route path="/login" element={<Dashboard />} />
-                <Route path="/register" element={<Dashboard />} />
-                <Route path="/finance/categories" element={<AlbumCategoryPage />} />
-                <Route path="/finance/categories/:category" element={<CategoryDetailPage />} />
-
-              </Routes>
-            </main>
-          </div>
-        )}
+              {/* fallback */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </>
+          )}
+        </Routes>
       </ThemeProvider>
     </ColorModeContext.Provider>
   );

@@ -2,10 +2,9 @@ import {
   Box,
   Typography,
   useTheme,
-  Button,
-  ButtonGroup,
   Alert,
   CircularProgress,
+  useMediaQuery,
 } from "@mui/material";
 import { useEffect, useMemo, useState } from "react";
 import { tokens } from "../../theme";
@@ -76,7 +75,10 @@ const Dashboard = () => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
 
-  const [range, setRange] = useState("month");
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+
+  // ✅ Lock view to TODAY only
+  const range = "today";
 
   const [cards, setCards] = useState(null);
   const [chartItems, setChartItems] = useState([]);
@@ -98,9 +100,7 @@ const Dashboard = () => {
         });
 
         const text = await res.text();
-        if (!res.ok) {
-          throw new Error(text || `HTTP ${res.status}`);
-        }
+        if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
 
         const data = text ? JSON.parse(text) : {};
 
@@ -125,7 +125,7 @@ const Dashboard = () => {
     };
 
     fetchDashboard();
-  }, [range]);
+  }, []);
 
   const chartData = useMemo(() => {
     const map = new Map();
@@ -142,18 +142,60 @@ const Dashboard = () => {
     }));
   }, [chartItems]);
 
+  // ✅ interpret all cards as TODAY values
   const avgDay = cards?.average_per_day || { value: 0, pct: 0 };
-  const monthExp = cards?.total_monthly_expense || { value: 0, pct: 0 };
-  const monthTx = cards?.total_transactions || { value: 0, pct: 0 };
-  const topCat = cards?.top_spending_category || {
+  const todayTx = cards?.total_transactions || { value: 0, pct: 0 };
+  const topCatToday = cards?.top_spending_category || {
     category: "Others",
     value: 0,
     pct: 0,
   };
 
+  // ✅ small card style
+  const cardBoxSx = {
+    backgroundColor: colors.primary[400],
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 0,
+    px: { xs: 2, md: 1.5 },
+    py: { xs: 2, md: 1.2 },
+  };
+
+  const cardTitleSx = {
+    color: colors.grey[200],
+    fontWeight: 700,
+    mb: 0.5,
+    fontSize: { xs: 14, md: 14 },
+  };
+
+  const cardValueSx = {
+    fontWeight: 900,
+    lineHeight: 1,
+    fontSize: { xs: 40, md: 44 },
+  };
+
+  const cardSubSx = {
+    color: colors.grey[300],
+    mt: 0.5,
+    fontSize: { xs: 13, md: 13 },
+  };
+
+  const cardPctSx = {
+    mt: 0.75,
+    fontWeight: 700,
+    fontSize: { xs: 12, md: 12 },
+  };
+
   return (
-    <Box m="20px">
-      <Box display="flex" justifyContent="space-between" alignItems="center">
+    <Box sx={{ m: { xs: 2, md: "20px" } }}>
+      <Box
+        display="flex"
+        justifyContent="space-between"
+        alignItems={{ xs: "flex-start", md: "center" }}
+        flexDirection={{ xs: "column", md: "row" }}
+        gap={{ xs: 1, md: 0 }}
+      >
         <Header title="DASHBOARD" subtitle="Welcome to your dashboard" />
       </Box>
 
@@ -165,10 +207,10 @@ const Dashboard = () => {
 
       <Box
         display="grid"
-        gridTemplateColumns="repeat(12, 1fr)"
-        gridAutoRows="140px"
-        gap="20px"
-        sx={{ position: "relative" }}
+        gridTemplateColumns={isMobile ? "1fr" : "repeat(12, 1fr)"}
+        gridAutoRows={isMobile ? "auto" : "120px"}
+        gap={{ xs: 2, md: "20px" }}
+        sx={{ position: "relative", "& > *": { minWidth: 0 } }}
       >
         {loading && (
           <Box
@@ -186,315 +228,111 @@ const Dashboard = () => {
           </Box>
         )}
 
-        {/* Card 1 */}
-        <Box
-          gridColumn="span 3"
-          backgroundColor={colors.primary[400]}
-          display="flex"
-          alignItems="center"
-          justifyContent="center"
-        >
+        {/* TOP ROW: 3 cards */}
+        <Box gridColumn={isMobile ? "1 / -1" : "span 4"} sx={cardBoxSx}>
           <Box textAlign="center">
-            <Typography
-              variant="h5"
-              color={colors.grey[200]}
-              fontWeight="600"
-              sx={{ mb: "6px" }}
-            >
-              Total per Day
-            </Typography>
-            <Typography
-              variant="h1"
-              fontWeight="bold"
-              color={colors.greenAccent[500]}
-              sx={{ lineHeight: 1 }}
-            >
+            <Typography sx={cardTitleSx}>Total Today</Typography>
+            <Typography sx={{ ...cardValueSx, color: colors.greenAccent[500] }}>
               {fmtMoney(avgDay.value)} ฿
             </Typography>
+            <Typography sx={cardSubSx}>Today's Spending</Typography>
             <Typography
-              variant="h6"
-              color={colors.grey[300]}
-              sx={{ mt: "4px" }}
-            >
-              Daily Spending
-            </Typography>
-            <Typography
-              variant="subtitle1"
-              color={pctColor(colors, avgDay.pct)}
-              sx={{ mt: "6px" }}
+              sx={{ ...cardPctSx, color: pctColor(colors, avgDay.pct) }}
             >
               {pctText(avgDay.pct)} from yesterday
             </Typography>
           </Box>
         </Box>
 
-        {/* Card 2 */}
-        <Box
-          gridColumn="span 3"
-          backgroundColor={colors.primary[400]}
-          display="flex"
-          alignItems="center"
-          justifyContent="center"
-        >
+        <Box gridColumn={isMobile ? "1 / -1" : "span 4"} sx={cardBoxSx}>
           <Box textAlign="center">
-            <Typography
-              variant="h5"
-              color={colors.grey[200]}
-              fontWeight="600"
-              sx={{ mb: "6px" }}
-            >
-              Total Monthly Expense
+            <Typography sx={cardTitleSx}>Total Transactions Today</Typography>
+            <Typography sx={{ ...cardValueSx, color: colors.greenAccent[400] }}>
+              {todayTx.value ?? 0}
             </Typography>
+            <Typography sx={cardSubSx}>Transactions Today</Typography>
             <Typography
-              variant="h1"
-              fontWeight="bold"
-              color={colors.greenAccent[400]}
-              sx={{ lineHeight: 1 }}
+              sx={{ ...cardPctSx, color: pctColor(colors, todayTx.pct) }}
             >
-              {fmtMoney(monthExp.value)} ฿
-            </Typography>
-            <Typography
-              variant="h6"
-              color={colors.grey[300]}
-              sx={{ mt: "4px" }}
-            >
-              Monthly Spending
-            </Typography>
-            <Typography
-              variant="subtitle1"
-              color={pctColor(colors, monthExp.pct)}
-              sx={{ mt: "6px" }}
-            >
-              {pctText(monthExp.pct)} from last month
+              {pctText(todayTx.pct)} from yesterday
             </Typography>
           </Box>
         </Box>
 
-        {/* Card 3 */}
-        <Box
-          gridColumn="span 3"
-          backgroundColor={colors.primary[400]}
-          display="flex"
-          alignItems="center"
-          justifyContent="center"
-        >
+        <Box gridColumn={isMobile ? "1 / -1" : "span 4"} sx={cardBoxSx}>
           <Box textAlign="center">
-            <Typography
-              variant="h5"
-              color={colors.grey[200]}
-              fontWeight="600"
-              sx={{ mb: "6px" }}
-            >
-              Total Transactions
+            <Typography sx={cardTitleSx}>
+              Top Spending Category Today
             </Typography>
             <Typography
-              variant="h1"
-              fontWeight="bold"
-              color={colors.greenAccent[400]}
-              sx={{ lineHeight: 1 }}
-            >
-              {monthTx.value ?? 0}
-            </Typography>
-            <Typography
-              variant="h6"
-              color={colors.grey[300]}
-              sx={{ mt: "4px" }}
-            >
-              Transactions This Month
-            </Typography>
-            <Typography
-              variant="subtitle1"
-              color={pctColor(colors, monthTx.pct)}
-              sx={{ mt: "6px" }}
-            >
-              {pctText(monthTx.pct)} from last month
-            </Typography>
-          </Box>
-        </Box>
-
-        {/* Card 4 */}
-        <Box
-          gridColumn="span 3"
-          backgroundColor={colors.primary[400]}
-          display="flex"
-          alignItems="center"
-          justifyContent="center"
-        >
-          <Box textAlign="center">
-            <Typography
-              variant="h5"
-              color={colors.grey[200]}
-              fontWeight="600"
-              sx={{ mb: "6px" }}
-            >
-              Top Spending Category
-            </Typography>
-            <Typography
-              variant="h2"
-              fontWeight="bold"
-              color={colors.greenAccent[400]}
-              sx={{ lineHeight: 1 }}
-            >
-              {topCat.category || "Others"}
-            </Typography>
-            <Typography
-              variant="h6"
-              color={colors.grey[300]}
-              sx={{ mt: "4px" }}
-            >
-              Most Spending Category
-            </Typography>
-            <Typography
-              variant="subtitle1"
-              color={pctColor(colors, topCat.pct)}
-              sx={{ mt: "6px" }}
-            >
-              {pctText(topCat.pct)} from last month
-            </Typography>
-          </Box>
-        </Box>
-
-        {/* Chart */}
-        <Box
-          gridColumn="span 8"
-          gridRow="span 2"
-          backgroundColor={colors.primary[400]}
-          p="20px"
-        >
-          <Box
-            display="flex"
-            justifyContent="space-between"
-            alignItems="center"
-            mb="10px"
-          >
-            <Box>
-              <Typography
-                variant="h5"
-                fontWeight="600"
-                color={colors.grey[100]}
-              >
-                Expense by Category
-              </Typography>
-              <Typography variant="h6" color={colors.greenAccent[500]}>
-                Spending Overview
-              </Typography>
-            </Box>
-
-            <ButtonGroup
-              size="small"
-              variant="outlined"
               sx={{
-                borderColor: colors.greenAccent[500],
-                "& .MuiButton-root": {
-                  textTransform: "none",
-                  fontWeight: 800,
-                  borderColor: colors.greenAccent[500],
-                  color: colors.greenAccent[300],
-                  transition: "0.15s",
-                },
-                "& .MuiButton-root:hover": {
-                  backgroundColor: colors.primary[600],
-                  borderColor: colors.greenAccent[400],
-                },
+                fontWeight: 900,
+                lineHeight: 1.05,
+                fontSize: { xs: 28, md: 32 },
+                color: colors.greenAccent[400],
+                wordBreak: "break-word",
               }}
             >
-              <Button
-                onClick={() => setRange("today")}
-                sx={{
-                  backgroundColor:
-                    range === "today" ? colors.greenAccent[600] : "transparent",
-                  color:
-                    range === "today"
-                      ? colors.primary[900]
-                      : colors.greenAccent[300],
-                  borderColor:
-                    range === "today"
-                      ? colors.greenAccent[600]
-                      : colors.greenAccent[500],
-                  "&:hover": {
-                    backgroundColor:
-                      range === "today"
-                        ? colors.greenAccent[700]
-                        : colors.primary[600],
-                  },
-                }}
-              >
-                Today
-              </Button>
+              {topCatToday.category || "Others"}
+            </Typography>
+            <Typography sx={cardSubSx}>Most Spending Category Today</Typography>
+            <Typography
+              sx={{ ...cardPctSx, color: pctColor(colors, topCatToday.pct) }}
+            >
+              {pctText(topCatToday.pct)} from yesterday
+            </Typography>
+          </Box>
+        </Box>
 
-              <Button
-                onClick={() => setRange("month")}
-                sx={{
-                  backgroundColor:
-                    range === "month" ? colors.greenAccent[600] : "transparent",
-                  color:
-                    range === "month"
-                      ? colors.primary[900]
-                      : colors.greenAccent[300],
-                  borderColor:
-                    range === "month"
-                      ? colors.greenAccent[600]
-                      : colors.greenAccent[500],
-                  "&:hover": {
-                    backgroundColor:
-                      range === "month"
-                        ? colors.greenAccent[700]
-                        : colors.primary[600],
-                  },
-                }}
-              >
-                This Month
-              </Button>
-
-              <Button
-                onClick={() => setRange("year")}
-                sx={{
-                  backgroundColor:
-                    range === "year" ? colors.greenAccent[600] : "transparent",
-                  color:
-                    range === "year"
-                      ? colors.primary[900]
-                      : colors.greenAccent[300],
-                  borderColor:
-                    range === "year"
-                      ? colors.greenAccent[600]
-                      : colors.greenAccent[500],
-                  "&:hover": {
-                    backgroundColor:
-                      range === "year"
-                        ? colors.greenAccent[700]
-                        : colors.primary[600],
-                  },
-                }}
-              >
-                This Year
-              </Button>
-            </ButtonGroup>
+        {/* ✅ LEFT: CHART (span 3 rows => สูงเท่า Recent) */}
+        <Box
+          gridColumn={isMobile ? "1 / -1" : "span 8"}
+          gridRow={isMobile ? "auto" : "span 3"} // ✅ จาก span 2 -> span 3
+          backgroundColor={colors.primary[400]}
+          p={{ xs: 2, md: "18px" }}
+          sx={{
+            minWidth: 0,
+            display: "flex",
+            flexDirection: "column", // ✅ เพื่อให้กราฟยืดเต็มความสูง
+            overflow: "hidden",
+          }}
+        >
+          <Box mb="10px" sx={{ minWidth: 0, flexShrink: 0 }}>
+            <Typography variant="h5" fontWeight="700" color={colors.grey[100]}>
+              Expense by Category
+            </Typography>
+            <Typography variant="h6" color={colors.greenAccent[500]}>
+              Spending Overview (Today)
+            </Typography>
           </Box>
 
-          <Box height="260px">
+          {/* ✅ กราฟยืดเต็มพื้นที่ที่เหลือ (สูงเท่ากล่อง Recent) */}
+          <Box sx={{ flex: 1, minHeight: 260, minWidth: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
+              <BarChart
+                data={chartData}
+                margin={{ left: 4, right: 4, top: 8, bottom: 8 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="category" />
-                <YAxis />
+                <XAxis
+                  dataKey="category"
+                  interval={0}
+                  angle={isMobile ? -25 : 0}
+                  textAnchor={isMobile ? "end" : "middle"}
+                  height={isMobile ? 60 : 30}
+                />
+                <YAxis width={isMobile ? 36 : 48} />
                 <Tooltip
                   formatter={(value) => [`${fmtMoney(value)} ฿`, "Total"]}
                   contentStyle={{
                     backgroundColor: colors.primary[500],
-                    border: `1px solid ${colors.white}`,
+                    border: `1px solid rgba(255,255,255,0.18)`,
                     borderRadius: 8,
                   }}
-                  labelStyle={{
-                    color: colors.white,
-                    fontWeight: 800,
-                  }}
-                  itemStyle={{
-                    color: colors.white, 
-                  }}
-                  cursor={{ fill: "rgba(255,255,255,0.05)" }} 
+                  labelStyle={{ color: "#fff", fontWeight: 800 }}
+                  itemStyle={{ color: "#fff" }}
+                  cursor={{ fill: "rgba(255,255,255,0.05)" }}
                 />
-
                 <Bar dataKey="total" radius={[6, 6, 0, 0]}>
                   {chartData.map((entry) => (
                     <Cell
@@ -508,12 +346,20 @@ const Dashboard = () => {
           </Box>
         </Box>
 
-        {/* Recent */}
+        {/* RIGHT: RECENT (span 3 rows) */}
         <Box
-          gridColumn="span 4"
-          gridRow="span 2"
+          gridColumn={isMobile ? "1 / -1" : "span 4"}
+          gridRow={isMobile ? "auto" : "span 3"}
           backgroundColor={colors.primary[400]}
-          overflow="auto"
+          sx={{
+            minWidth: 0,
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+
+            // ✅ เพิ่มตรงนี้ (สำคัญมาก)
+            ...(isMobile ? { maxHeight: "70vh" } : {}),
+          }}
         >
           <Box
             display="flex"
@@ -521,73 +367,83 @@ const Dashboard = () => {
             alignItems="center"
             borderBottom={`4px solid ${colors.primary[500]}`}
             p="15px"
+            sx={{ flexShrink: 0 }}
           >
-            <Typography color={colors.grey[100]} variant="h5" fontWeight="600">
+            <Typography color={colors.grey[100]} variant="h5" fontWeight="700">
               Recent Transactions
             </Typography>
           </Box>
 
-          {recent.map((tx, i) => (
-            <Box
-              key={`${tx.id}-${i}`}
-              display="flex"
-              alignItems="flex-start"
-              borderBottom={`4px solid ${colors.primary[500]}`}
-              p="15px"
-            >
-              <Box sx={{ width: "50%" }}>
-                <Typography
-                  color={colors.greenAccent[500]}
-                  variant="h5"
-                  fontWeight="600"
-                >
-                  {tx.category || "Others"}
-                </Typography>
-                <Typography color={colors.grey[100]}>
-                  {tx.bank || "-"}
-                </Typography>
-
-                {tx.file_url && (
-                  <a
-                    href={tx.file_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ color: colors.greenAccent[300], fontSize: 12 }}
+          <Box sx={{ overflow: "auto", flex: 1 }}>
+            {recent.map((tx, i) => (
+              <Box
+                key={`${tx.id}-${i}`}
+                display="flex"
+                flexDirection={isMobile ? "column" : "row"}
+                gap={isMobile ? 1 : 0}
+                alignItems="flex-start"
+                borderBottom={`4px solid ${colors.primary[500]}`}
+                p="15px"
+                sx={{ minWidth: 0 }}
+              >
+                <Box sx={{ width: isMobile ? "100%" : "50%", minWidth: 0 }}>
+                  <Typography
+                    color={colors.greenAccent[500]}
+                    variant="h5"
+                    fontWeight="700"
+                    sx={{ wordBreak: "break-word" }}
                   >
-                    View Slip
-                  </a>
-                )}
-              </Box>
+                    {tx.category || "Others"}
+                  </Typography>
+                  <Typography color={colors.grey[100]} sx={{ opacity: 0.95 }}>
+                    {tx.bank || "-"}
+                  </Typography>
 
-              <Box
-                sx={{ width: "25%", textAlign: "center" }}
-                color={colors.grey[100]}
-              >
-                {tx.date || "-"}
-              </Box>
+                  {tx.file_url && (
+                    <a
+                      href={tx.file_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ color: colors.greenAccent[300], fontSize: 12 }}
+                    >
+                      View Slip
+                    </a>
+                  )}
+                </Box>
 
-              <Box
-                sx={{
-                  width: "25%",
-                  display: "flex",
-                  justifyContent: "flex-end",
-                }}
-              >
                 <Box
                   sx={{
-                    width: "90px",
-                    textAlign: "center",
-                    backgroundColor: colors.greenAccent[500],
-                    p: "5px 10px",
-                    borderRadius: "4px",
-                    fontWeight: 600,
+                    width: isMobile ? "100%" : "25%",
+                    textAlign: isMobile ? "left" : "center",
+                  }}
+                  color={colors.grey[100]}
+                >
+                  {tx.date || "-"}
+                </Box>
+
+                <Box
+                  sx={{
+                    width: isMobile ? "100%" : "25%",
+                    display: "flex",
+                    justifyContent: isMobile ? "flex-start" : "flex-end",
                   }}
                 >
-                  {fmtMoney(tx.amount)}฿
+                  <Box
+                    sx={{
+                      width: isMobile ? "fit-content" : "90px",
+                      textAlign: "center",
+                      backgroundColor: colors.greenAccent[500],
+                      p: "5px 10px",
+                      borderRadius: "4px",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {fmtMoney(tx.amount)}฿
+                  </Box>
                 </Box>
               </Box>
-            </Box>
-          ))}
+            ))}
+          </Box>
         </Box>
       </Box>
     </Box>

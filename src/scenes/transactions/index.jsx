@@ -7,6 +7,8 @@ import {
   MenuItem,
   Stack,
   Alert,
+  useMediaQuery,
+  Tooltip,
 } from "@mui/material";
 import { DataGrid, GridToolbar } from "@mui/x-data-grid";
 import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
@@ -38,48 +40,75 @@ const Transactions = () => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
 
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+
   const [searchBank, setSearchBank] = useState("");
-  const [filterType, setFilterType] = useState("all"); 
+  const [filterType, setFilterType] = useState("all");
   const [month, setMonth] = useState("01");
   const [year, setYear] = useState("2026");
-
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
-  /* -------- COLUMNS -------- */
-  const columns = [
-    {
-      field: "qr",
-      headerName: "QR Reference",
-      flex: 1,
-      renderCell: (params) => (
-        <a
-          href={params.value}
-          target="_blank"
-          rel="noreferrer"
-          style={{ color: colors.greenAccent[400] }}
-        >
-          View Slip
-        </a>
-      ),
-    },
-    { field: "bank", headerName: "Bank", flex: 1 },
-    {
-      field: "amount",
-      headerName: "Amount (฿)",
-      flex: 1,
-      renderCell: (params) => (
-        <Typography color={colors.greenAccent[300]}>
-          {(params.value ?? 0).toLocaleString()}
-        </Typography>
-      ),
-    },
-    { field: "date", headerName: "Date", flex: 1 },
-    { field: "time", headerName: "Time", flex: 0.8 },
-    { field: "category", headerName: "Category", flex: 1 },
-  ];
+  const columns = useMemo(
+    () => [
+      {
+        field: "datetime",
+        headerName: "Date/Time",
+        flex: 1.2,
+        minWidth: 160,
+        valueGetter: (_, row) => `${row.date} ${row.time}`,
+      },
+      {
+        field: "amount",
+        headerName: "Amount (฿)",
+        type: "number",
+        flex: 1,
+        minWidth: 140,
+        align: "right",
+        headerAlign: "right",
+        renderCell: (params) => (
+          <Typography
+            color={colors.greenAccent[300]}
+            fontWeight={800}
+            sx={{ width: "100%", textAlign: "right" }}
+          >
+            {(params.value ?? 0).toLocaleString()}
+          </Typography>
+        ),
+      },
+      { field: "bank", headerName: "Bank", flex: 1, minWidth: 140 },
+      { field: "category", headerName: "Category", flex: 1, minWidth: 140 },
+      {
+        field: "qr",
+        headerName: "Slip",
+        flex: 0.8,
+        minWidth: 120,
+        sortable: false,
+        renderCell: (params) => (
+          <a
+            href={params.value}
+            target="_blank"
+            rel="noreferrer"
+            style={{ color: colors.greenAccent[400], fontWeight: 700 }}
+          >
+            View
+          </a>
+        ),
+      },
+    ],
+    [colors],
+  );
+
+  // ✅ ซ่อนบางคอลัมน์บนมือถือ (อ่านง่ายขึ้น)
+  const columnVisibilityModel = useMemo(() => {
+    if (!isMobile) return {};
+    return {
+      time: false,
+      category: false,
+    };
+  }, [isMobile]);
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
@@ -87,7 +116,7 @@ const Transactions = () => {
 
     if (filterType === "month") {
       params.set("year", year);
-      params.set("month", String(parseInt(month, 10))); 
+      params.set("month", String(parseInt(month, 10)));
     }
     if (filterType === "year") {
       params.set("year", year);
@@ -96,13 +125,11 @@ const Transactions = () => {
       params.set("bank", searchBank.trim());
     }
 
-  
     params.set("page", "1");
-    params.set("page_size", "100"); 
+    params.set("page_size", "100");
 
     return params.toString();
   }, [filterType, year, month, searchBank]);
-
 
   useEffect(() => {
     const fetchData = async () => {
@@ -124,16 +151,14 @@ const Transactions = () => {
         const data = await res.json();
 
         const toAbsUrl = (p) => {
-        if (!p) return "";
-        if (p.startsWith("http://") || p.startsWith("https://")) return p;
-        if (p.startsWith("/")) return `${API_BASE}${p}`;
-        return `${API_BASE}/${p}`;
-      };
-
-
+          if (!p) return "";
+          if (p.startsWith("http://") || p.startsWith("https://")) return p;
+          if (p.startsWith("/")) return `${API_BASE}${p}`;
+          return `${API_BASE}/${p}`;
+        };
 
         const mapped = (data.rows || []).map((x) => ({
-          id: x.id, 
+          id: x.id,
           qr: toAbsUrl(x.qr),
           bank: x.bank || "-",
           amount: x.amount ?? 0,
@@ -154,25 +179,36 @@ const Transactions = () => {
     fetchData();
   }, [queryString]);
 
+  const handleDownload = () => {
+    // TODO: ใส่ logic export csv/xlsx ตาม backend/ที่ต้องการ
+    alert("Download is not implemented yet");
+  };
+
   return (
-    <Box m="20px" display="flex" flexDirection="column" height="100%">
+    <Box sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 3 } }}>
       <Header title="TRANSACTIONS" subtitle="All expense transaction records" />
 
-      {/* -------- FILTER BAR -------- */}
+      {/* -------- FILTER BAR (Responsive) -------- */}
       <Stack
-        direction="row"
+        direction={{ xs: "column", md: "row" }}
         spacing={2}
         mb={3}
-        alignItems="center"
+        alignItems={{ xs: "stretch", md: "center" }}
         justifyContent="space-between"
       >
-        <Stack direction="row" spacing={2}>
-          {/* Search */}
+        {/* Left controls */}
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={2}
+          alignItems={{ xs: "stretch", sm: "center" }}
+          sx={{ flex: 1, minWidth: 0 }}
+        >
           <TextField
             placeholder="Search Bank"
             size="small"
             value={searchBank}
             onChange={(e) => setSearchBank(e.target.value)}
+            sx={{ width: { xs: "100%", sm: 220 } }}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -182,21 +218,19 @@ const Transactions = () => {
             }}
           />
 
-          {/* Filter Type */}
           <TextField
             select
             size="small"
             label="Filter"
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
-            sx={{ width: 140 }}
+            sx={{ width: { xs: "100%", sm: 160 } }}
           >
             <MenuItem value="all">All</MenuItem>
             <MenuItem value="month">By Month</MenuItem>
             <MenuItem value="year">By Year</MenuItem>
           </TextField>
 
-          {/* Year */}
           {filterType !== "all" && (
             <TextField
               select
@@ -204,7 +238,7 @@ const Transactions = () => {
               label="Year"
               value={year}
               onChange={(e) => setYear(e.target.value)}
-              sx={{ width: 120 }}
+              sx={{ width: { xs: "100%", sm: 140 } }}
             >
               <MenuItem value="2024">2024</MenuItem>
               <MenuItem value="2025">2025</MenuItem>
@@ -212,7 +246,6 @@ const Transactions = () => {
             </TextField>
           )}
 
-          {/* Month */}
           {filterType === "month" && (
             <TextField
               select
@@ -220,7 +253,7 @@ const Transactions = () => {
               label="Month"
               value={month}
               onChange={(e) => setMonth(e.target.value)}
-              sx={{ width: 160 }}
+              sx={{ width: { xs: "100%", sm: 220 } }}
             >
               {months.map((m) => (
                 <MenuItem key={m.value} value={m.value}>
@@ -231,33 +264,46 @@ const Transactions = () => {
           )}
         </Stack>
 
-        {/* Download */}
-        <IconButton
+        {/* Right actions */}
+        <Box
           sx={{
-            backgroundColor: colors.greenAccent[600],
-            color: colors.grey[100],
-            borderRadius: "8px",
-            "&:hover": {
-              backgroundColor: colors.greenAccent[700],
-            },
+            display: "flex",
+            justifyContent: { xs: "flex-end", md: "flex-end" },
           }}
         >
-          <DownloadOutlinedIcon />
-        </IconButton>
+          <Tooltip title="Download">
+            <IconButton
+              onClick={handleDownload}
+              sx={{
+                backgroundColor: colors.greenAccent[600],
+                color: colors.grey[100],
+                borderRadius: "8px",
+                "&:hover": { backgroundColor: colors.greenAccent[700] },
+              }}
+            >
+              <DownloadOutlinedIcon />
+            </IconButton>
+          </Tooltip>
+        </Box>
       </Stack>
 
-      {/* ✅ Loading / Error */}
       {err && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {err}
         </Alert>
       )}
 
-      {/* -------- TABLE -------- */}
+      {/* -------- TABLE (Responsive) -------- */}
       <Box
         sx={{
-          height: "70vh",
-          "& .MuiDataGrid-root": { border: "none" },
+          // ✅ มือถือให้สูงขึ้นหน่อย/เดสก์ท็อปคงเดิม
+          height: { xs: "72vh", md: "70vh" },
+          // ✅ ให้เลื่อนแนวนอนได้ (DataGrid คอลัมน์เยอะ)
+          overflowX: "auto",
+          "& .MuiDataGrid-root": {
+            border: "none",
+            minWidth: isMobile ? 760 : "100%",
+          },
           "& .MuiDataGrid-columnHeaders": {
             backgroundColor: colors.blueAccent[700],
             borderBottom: "none",
@@ -277,8 +323,14 @@ const Transactions = () => {
         <DataGrid
           rows={rows}
           columns={columns}
-          components={{ Toolbar: GridToolbar }}
+          slots={{ toolbar: GridToolbar }}
           loading={loading}
+          disableRowSelectionOnClick
+          columnVisibilityModel={columnVisibilityModel}
+          initialState={{
+            pagination: { paginationModel: { pageSize: 25, page: 0 } },
+          }}
+          pageSizeOptions={[10, 25, 50, 100]}
         />
       </Box>
     </Box>
