@@ -20,8 +20,6 @@ import SlipResult from "./scenes/slipUpload/SlipResult";
 
 import Login from "./scenes/auth/Login";
 import Register from "./scenes/auth/Register";
-import AlbumCategoryPage from "./albumCategory/AlbumCategory";
-import CategoryDetailPage from "./albumCategory/CategoryDetail";
 
 function App() {
   const [theme, colorMode] = useMode();
@@ -72,9 +70,6 @@ function App() {
                 {/* ถ้าเข้า /login หรือ /register ตอน login แล้ว ให้กลับหน้าแรก */}
                 <Route path="/login" element={<Dashboard />} />
                 <Route path="/register" element={<Dashboard />} />
-                <Route path="/finance/categories" element={<AlbumCategoryPage />} />
-                <Route path="/finance/categories/:category" element={<CategoryDetailPage />} />
-
               </Routes>
             </main>
           </div>
