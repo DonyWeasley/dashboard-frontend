@@ -9,6 +9,8 @@ import DocumentScannerOutlinedIcon from "@mui/icons-material/DocumentScannerOutl
 import ReceiptLongOutlinedIcon from "@mui/icons-material/ReceiptLongOutlined";
 import AnalyticsOutlinedIcon from "@mui/icons-material/AnalyticsOutlined";
 import MenuOutlinedIcon from "@mui/icons-material/MenuOutlined";
+import { VscFileSubmodule } from "react-icons/vsc";
+import { GoGoal } from "react-icons/go";
 
 const Item = ({ title, to, icon, selected, setSelected }) => {
   const theme = useTheme();
@@ -103,9 +105,25 @@ const AppSidebar = () => {
             </Typography>
 
             <Item
+              title="Goal"
+              to="/goal"
+              icon={<GoGoal />}
+              selected={selected}
+              setSelected={setSelected}
+            />
+
+            <Item
               title="Attached transfer slip"
               to="/slip-upload"
               icon={<DocumentScannerOutlinedIcon />}
+              selected={selected}
+              setSelected={setSelected}
+            />
+
+            <Item
+              title="Album Catagory "
+              to="/finance/categories"
+              icon={<VscFileSubmodule />}
               selected={selected}
               setSelected={setSelected}
             />
