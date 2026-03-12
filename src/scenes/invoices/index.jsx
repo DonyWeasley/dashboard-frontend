@@ -34,116 +34,62 @@ const months = [
   { value: "12", label: "December" },
 ];
 
+const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
+
 const fmtMoney = (n) =>
   Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
 
-// ✅ banks & categories (mock + ordering)
-const BANKS = ["KBank", "SCB", "BBL", "Krungsri", "TTB"];
-const CATEGORIES = ["Food", "Transport", "Shopping", "Utilities", "Others"];
-const PAYING_TYPES = ["QR", "Transfer", "Card"];
+const getToken = () =>
+  localStorage.getItem("token") ||
+  sessionStorage.getItem("token") ||
+  localStorage.getItem("access_token") ||
+  sessionStorage.getItem("access_token") ||
+  "";
 
-const getDaysInMonth = (year, month) => {
-  return new Date(Number(year), Number(month), 0).getDate();
+const CATEGORY_ORDER = [
+  "Food&Drink",
+  "Transport",
+  "Shopping",
+  "Utilities",
+  "Others",
+];
+
+const monthShort = (m) => months[m - 1]?.label?.slice(0, 3) || String(m);
+
+/** สีประจำธนาคาร */
+const BANK_COLORS = {
+  BBL: "#42A5F5",
+  TTB: "#FFB74D",
+  GSB: "#F06292",
+  KBank: "#66BB6A",
+  SCB: "#AB47BC",
+  Krungsri: "#FFD54F",
+  KTB: "#29B6F6",
+  TrueMoney: "#FF8A65",
 };
 
-/** ✅ ONLY MOCK MODE */
-const makeMockStats = (filterType, year, month) => {
-  const rand = (min, max) =>
-    Math.round((min + Math.random() * (max - min)) * 100) / 100;
+/** Helper: build /stats query */
+const buildStatsUrl = ({ range, year, month }) => {
+  const params = new URLSearchParams();
+  params.set("range", range);
 
-  const daysInMonth = filterType === "month" ? getDaysInMonth(year, month) : 31;
-  const timeBuckets =
-    filterType === "year"
-      ? Array.from({ length: 12 }, (_, i) => i + 1)
-      : Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  if (range === "year") {
+    params.set("year", String(year));
+  }
 
-  const expenses_over_time = timeBuckets.map((t) => ({
-    x: t,
-    total: rand(80, 6500),
-  }));
+  if (range === "month") {
+    params.set("year", String(year));
+    params.set("month", String(Number(month)));
+  }
 
-  const category_bank_stacks = [];
-  CATEGORIES.forEach((cat) => {
-    BANKS.forEach((bank) => {
-      const base =
-        cat === "Utilities"
-          ? rand(600, 5200)
-          : cat === "Shopping"
-            ? rand(400, 6200)
-            : cat === "Transport"
-              ? rand(300, 4800)
-              : cat === "Food"
-                ? rand(200, 4200)
-                : rand(150, 2200);
-
-      category_bank_stacks.push({ category: cat, bank, total: base });
-    });
-  });
-
-  const box_whisker = [];
-  CATEGORIES.forEach((cat) => {
-    PAYING_TYPES.forEach((pt) => {
-      const count = 10 + Math.floor(Math.random() * 10);
-      const values = Array.from({ length: count }, () => {
-        const base =
-          cat === "Utilities"
-            ? rand(200, 3500)
-            : cat === "Shopping"
-              ? rand(120, 3000)
-              : cat === "Transport"
-                ? rand(120, 4200)
-                : cat === "Food"
-                  ? rand(30, 1500)
-                  : rand(20, 1200);
-
-        const ptBoost = pt === "Card" ? 1.25 : pt === "Transfer" ? 1.1 : 1;
-        return Math.round(base * ptBoost);
-      });
-      box_whisker.push({ category: cat, paying_type: pt, values });
-    });
-  });
-
-  const bank_heatmap = BANKS.map((bank) => ({
-    bank,
-    values: timeBuckets.map((t) => ({
-      x: String(filterType === "year" ? months[t - 1].label.slice(0, 3) : t),
-      y: rand(0, 9000),
-    })),
-  }));
-
-  const total_expenses = category_bank_stacks.reduce(
-    (s, r) => s + Number(r.total || 0),
-    0
-  );
-  const total_transactions = Math.floor(rand(18, 120));
-
-  const catSum = {};
-  const bankSum = {};
-  category_bank_stacks.forEach((r) => {
-    catSum[r.category] = (catSum[r.category] || 0) + r.total;
-    bankSum[r.bank] = (bankSum[r.bank] || 0) + r.total;
-  });
-
-  const top_category =
-    Object.entries(catSum).sort((a, b) => b[1] - a[1])[0]?.[0] || "Others";
-  const top_bank =
-    Object.entries(bankSum).sort((a, b) => b[1] - a[1])[0]?.[0] || "-";
-
-  return {
-    cards: { total_expenses, top_category, top_bank, total_transactions },
-    expenses_over_time,
-    category_bank_stacks,
-    box_whisker,
-    bank_heatmap,
-    meta: { mock: true, range: filterType, year, month },
-  };
+  return `${API_BASE}/stats/?${params.toString()}`;
 };
 
 const StatisticalInformations = () => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
 
-  const [filterType, setFilterType] = useState("all"); // all | month | year
+  const [filterType, setFilterType] = useState("all");
   const [month, setMonth] = useState("01");
   const [year, setYear] = useState("2026");
 
@@ -155,14 +101,18 @@ const StatisticalInformations = () => {
   });
 
   const [expensesOverTime, setExpensesOverTime] = useState([]);
-  const [categoryBankStacks, setCategoryBankStacks] = useState([]);
-  const [boxWhisker, setBoxWhisker] = useState([]);
-  const [bankHeatmap, setBankHeatmap] = useState([]);
+  const [averageLine, setAverageLine] = useState(null);
+
+  const [categoryByBank, setCategoryByBank] = useState({
+    banks: [],
+    items: [],
+  });
+  const [spendingSpread, setSpendingSpread] = useState([]);
+  const [bankHeatmap, setBankHeatmap] = useState(null);
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
-  // ✅ Accent colors: match dashboard (greenAccent)
   const ACCENT = useMemo(
     () => ({
       line: colors.greenAccent[400],
@@ -170,23 +120,9 @@ const StatisticalInformations = () => {
       pointBorder: colors.greenAccent[700],
       avg: colors.greenAccent[200],
       areaOpacity: 0.16,
-      // bank colors (all in green/teal family like dashboard)
-      bank: {
-        KBank: colors.greenAccent[200],
-        SCB: colors.greenAccent[300],
-        BBL: colors.greenAccent[400],
-        Krungsri: colors.greenAccent[500],
-        TTB: colors.greenAccent[600],
-        "-": colors.grey[400],
-      },
-      paying: {
-        QR: colors.greenAccent[200],
-        Transfer: colors.greenAccent[400],
-        Card: colors.greenAccent[600],
-        Unknown: colors.grey[400],
-      },
+      bankFallback: colors.greenAccent[400],
     }),
-    [colors]
+    [colors],
   );
 
   const nivoTheme = useMemo(() => {
@@ -218,41 +154,100 @@ const StatisticalInformations = () => {
     };
   }, [colors]);
 
-  // ✅ ONLY MOCK: generate whenever filter changes
   useEffect(() => {
-    const loadMock = async () => {
+    const fetchStats = async () => {
       setLoading(true);
       setErr("");
-      try {
-        await new Promise((r) => setTimeout(r, 250));
 
-        const mock = makeMockStats(filterType, year, month);
-        setCards(mock.cards);
-        setExpensesOverTime(mock.expenses_over_time);
-        setCategoryBankStacks(mock.category_bank_stacks);
-        setBoxWhisker(mock.box_whisker);
-        setBankHeatmap(mock.bank_heatmap);
+      const token = getToken();
+      const url = buildStatsUrl({ range: filterType, year, month });
+
+      try {
+        const res = await fetch(url, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+
+        const text = await res.text();
+        if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
+        const data = text ? JSON.parse(text) : {};
+
+        setCards({
+          total_expenses: Number(data?.cards?.total_expenses ?? 0),
+          top_category: data?.cards?.top_category ?? "Others",
+          top_bank: data?.cards?.top_bank ?? "-",
+          total_transactions: Number(data?.cards?.total_transactions ?? 0),
+        });
+
+        const expensesRaw = Array.isArray(data?.expenses_over_time)
+          ? data.expenses_over_time
+          : Array.isArray(data?.expenses_over_time?.items)
+            ? data.expenses_over_time.items
+            : [];
+
+        setExpensesOverTime(expensesRaw);
+
+        setAverageLine(
+          data?.average_line === null || data?.average_line === undefined
+            ? null
+            : Number(data.average_line),
+        );
+
+        setCategoryByBank({
+          banks: Array.isArray(data?.category_by_bank?.banks)
+            ? data.category_by_bank.banks
+            : [],
+          items: Array.isArray(data?.category_by_bank?.items)
+            ? data.category_by_bank.items
+            : [],
+        });
+
+        setSpendingSpread(
+          Array.isArray(data?.spending_spread) ? data.spending_spread : [],
+        );
+        setBankHeatmap(data?.bank_heatmap || null);
       } catch (e) {
-        setErr(e?.message || "Failed to load mock statistics");
+        setErr(e?.message || "Failed to load statistics");
+        setCards({
+          total_expenses: 0,
+          top_category: "Others",
+          top_bank: "-",
+          total_transactions: 0,
+        });
+        setExpensesOverTime([]);
+        setAverageLine(null);
+        setCategoryByBank({ banks: [], items: [] });
+        setSpendingSpread([]);
+        setBankHeatmap(null);
       } finally {
         setLoading(false);
       }
     };
 
-    loadMock();
+    fetchStats();
   }, [filterType, month, year]);
+
+  const xAxisLabel = useMemo(() => {
+    if (filterType === "all") return "Year";
+    if (filterType === "year") return "Month";
+    return "Day";
+  }, [filterType]);
 
   const lineData = useMemo(() => {
     const series = (expensesOverTime || [])
       .map((p) => {
         const xNum = Number(p?.x);
         const yNum = Number(p?.total);
+
         if (!Number.isFinite(xNum) || !Number.isFinite(yNum)) return null;
 
-        const xLabel =
-          filterType === "year"
-            ? months[xNum - 1]?.label?.slice(0, 3) || String(xNum)
-            : String(xNum).padStart(2, "0");
+        let xLabel = "";
+        if (filterType === "all") {
+          xLabel = String(xNum);
+        } else if (filterType === "year") {
+          xLabel = monthShort(xNum);
+        } else {
+          xLabel = String(xNum).padStart(2, "0");
+        }
 
         return { x: xLabel, y: yNum };
       })
@@ -262,13 +257,104 @@ const StatisticalInformations = () => {
   }, [expensesOverTime, filterType]);
 
   const avgValue = useMemo(() => {
+    if (Number.isFinite(Number(averageLine))) return Number(averageLine);
+
     const ys = (lineData?.[0]?.data || [])
       .map((d) => Number(d?.y))
       .filter(Number.isFinite);
 
     if (!ys.length) return 0;
     return ys.reduce((a, b) => a + b, 0) / ys.length;
-  }, [lineData]);
+  }, [averageLine, lineData]);
+
+  const stackedBar = useMemo(() => {
+    const banks = Array.isArray(categoryByBank?.banks)
+      ? categoryByBank.banks
+      : [];
+    const items = Array.isArray(categoryByBank?.items)
+      ? categoryByBank.items
+      : [];
+
+    const map = new Map(items.map((r) => [r?.category, r]));
+    const ordered = CATEGORY_ORDER.filter((c) => map.has(c)).map((c) =>
+      map.get(c),
+    );
+
+    items.forEach((r) => {
+      const c = r?.category;
+      if (c && !CATEGORY_ORDER.includes(c)) ordered.push(r);
+    });
+
+    return { keys: banks, data: ordered };
+  }, [categoryByBank]);
+
+  const boxPlotData = useMemo(() => {
+    const rows = Array.isArray(spendingSpread) ? spendingSpread : [];
+
+    const points = [];
+    rows.forEach((r) => {
+      const group = r?.category || "Others";
+      const min = Number(r?.min ?? 0);
+      const q1 = Number(r?.q1 ?? 0);
+      const med = Number(r?.median ?? 0);
+      const q3 = Number(r?.q3 ?? 0);
+      const max = Number(r?.max ?? 0);
+
+      const vals = [min, q1, q1, med, med, q3, q3, max].filter((v) =>
+        Number.isFinite(v),
+      );
+      vals.forEach((v) => points.push({ group, id: "Amount", value: v }));
+    });
+
+    const ordered = [];
+    CATEGORY_ORDER.forEach((cat) => {
+      points.forEach((p) => {
+        if (p.group === cat) ordered.push(p);
+      });
+    });
+
+    return ordered.length ? ordered : points;
+  }, [spendingSpread]);
+
+  const heatmapData = useMemo(() => {
+    if (!bankHeatmap) return [];
+
+    const banks = Array.isArray(bankHeatmap?.banks) ? bankHeatmap.banks : [];
+    const buckets = Array.isArray(bankHeatmap?.days)
+      ? bankHeatmap.days
+      : Array.isArray(bankHeatmap?.labels)
+        ? bankHeatmap.labels
+        : [];
+
+    const matrix = Array.isArray(bankHeatmap?.matrix) ? bankHeatmap.matrix : [];
+
+    return banks.map((b, i) => ({
+      id: b,
+      data: buckets.map((d, j) => {
+        let xLabel = "";
+        if (filterType === "all") {
+          xLabel = String(d);
+        } else if (filterType === "year") {
+          xLabel = monthShort(Number(d));
+        } else {
+          xLabel = String(d).padStart(2, "0");
+        }
+
+        return {
+          x: xLabel,
+          y: Number.isFinite(Number(matrix?.[i]?.[j]))
+            ? Number(matrix[i][j])
+            : 0,
+        };
+      }),
+    }));
+  }, [bankHeatmap, filterType]);
+
+  const heatMax = useMemo(() => {
+    const vals = heatmapData.flatMap((r) => r.data.map((d) => d.y));
+    const m = Math.max(...vals, 0);
+    return m > 0 ? m : 1;
+  }, [heatmapData]);
 
   const quadHeight = { xs: 420, sm: 460, md: 380 };
 
@@ -288,7 +374,6 @@ const StatisticalInformations = () => {
     </Box>
   );
 
-  // ✅ Make cards/charts look like dashboard cards
   const chartCardSx = {
     p: 2,
     bgcolor: colors.primary[400],
@@ -309,76 +394,16 @@ const StatisticalInformations = () => {
     "& .MuiInputLabel-root": { color: colors.grey[200] },
   };
 
-  // chart 2/3/4 prep
-  const stackedBar = useMemo(() => {
-    const rows = Array.isArray(categoryBankStacks) ? categoryBankStacks : [];
+  const lineYMax = useMemo(() => {
+    const ys = (lineData?.[0]?.data || [])
+      .map((d) => Number(d?.y))
+      .filter(Number.isFinite);
 
-    const categories = CATEGORIES.filter((c) =>
-      rows.some((r) => (r?.category || "") === c)
-    );
+    const dataMax = ys.length ? Math.max(...ys) : 0;
+    const markerMax = Number.isFinite(Number(avgValue)) ? Number(avgValue) : 0;
 
-    const banks = Array.from(new Set(rows.map((r) => r?.bank).filter(Boolean)));
-    const orderedBanks = BANKS.filter((b) => banks.includes(b));
-    const keys = orderedBanks.length ? orderedBanks : banks;
-
-    const byCategory = new Map();
-    categories.forEach((c) => byCategory.set(c, { category: c }));
-
-    rows.forEach((r) => {
-      const c = r?.category || "Others";
-      const b = r?.bank || "-";
-      const amt = Number(r?.total || 0);
-      if (!byCategory.has(c)) byCategory.set(c, { category: c });
-      byCategory.get(c)[b] = (byCategory.get(c)[b] || 0) + amt;
-    });
-
-    return { keys, data: Array.from(byCategory.values()) };
-  }, [categoryBankStacks]);
-
-  const boxPlotData = useMemo(() => {
-    const rows = Array.isArray(boxWhisker) ? boxWhisker : [];
-
-    const points = [];
-    rows.forEach((r) => {
-      const group = r?.category || "Others";
-      const id = r?.paying_type || "Unknown";
-
-      (r?.values || []).forEach((v) => {
-        const n = Number(v);
-        if (Number.isFinite(n)) points.push({ group, id, value: n });
-      });
-    });
-
-    const ordered = [];
-    CATEGORIES.forEach((cat) => {
-      PAYING_TYPES.forEach((pt) => {
-        points.forEach((p) => {
-          if (p.group === cat && p.id === pt) ordered.push(p);
-        });
-      });
-    });
-
-    return ordered.length ? ordered : points;
-  }, [boxWhisker]);
-
-  const heatmapData = useMemo(() => {
-    const rows = Array.isArray(bankHeatmap) ? bankHeatmap : [];
-    const map = new Map(rows.map((r) => [r?.bank, r]));
-
-    return BANKS.filter((b) => map.has(b)).map((b) => ({
-      id: b,
-      data: (map.get(b)?.values || []).map((v) => ({
-        x: String(v?.x ?? ""),
-        y: Number.isFinite(Number(v?.y)) ? Number(v.y) : 0,
-      })),
-    }));
-  }, [bankHeatmap]);
-
-  const heatMax = useMemo(() => {
-    const vals = heatmapData.flatMap((r) => r.data.map((d) => d.y));
-    const m = Math.max(...vals, 0);
-    return m > 0 ? m : 1;
-  }, [heatmapData]);
+    return Math.max(dataMax, markerMax, 1);
+  }, [lineData, avgValue]);
 
   return (
     <Box sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 3 } }}>
@@ -390,7 +415,6 @@ const StatisticalInformations = () => {
         </Alert>
       )}
 
-      {/* ✅ Filters (match dashboard inputs) */}
       <Stack
         direction={{ xs: "column", sm: "row" }}
         spacing={2}
@@ -450,7 +474,6 @@ const StatisticalInformations = () => {
         </Box>
       )}
 
-      {/* ✅ Summary cards (same look as dashboard cards) */}
       <Box
         sx={{
           display: "grid",
@@ -463,152 +486,67 @@ const StatisticalInformations = () => {
           mb: 2,
         }}
       >
-        <Paper
-          sx={{
-            p: 2,
-            minHeight: 120,
-            bgcolor: colors.primary[400],
-            borderRadius: "14px",
-            border: `1px solid ${colors.primary[300]}`,
-            boxShadow: "0 12px 26px rgba(0,0,0,0.28)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Box textAlign="center">
-            <Typography
-              variant="subtitle2"
-              color={colors.grey[200]}
-              fontWeight="800"
-              sx={{ mb: "4px" }}
-            >
-              Total Expenses
-            </Typography>
-            <Typography
-              variant="h4"
-              fontWeight="900"
-              color={colors.greenAccent[400]}
-              sx={{ lineHeight: 1.1 }}
-            >
-              {fmtMoney(cards.total_expenses)} ฿
-            </Typography>
-            <Typography variant="caption" color={colors.grey[300]}>
-              Total Spending (filtered)
-            </Typography>
-          </Box>
-        </Paper>
-
-        <Paper
-          sx={{
-            p: 2,
-            minHeight: 120,
-            bgcolor: colors.primary[400],
-            borderRadius: "14px",
-            border: `1px solid ${colors.primary[300]}`,
-            boxShadow: "0 12px 26px rgba(0,0,0,0.28)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Box textAlign="center">
-            <Typography
-              variant="subtitle2"
-              color={colors.grey[200]}
-              fontWeight="800"
-              sx={{ mb: "4px" }}
-            >
-              Top Category
-            </Typography>
-            <Typography
-              variant="h5"
-              fontWeight="900"
-              color={colors.greenAccent[400]}
-              sx={{ lineHeight: 1.1 }}
-            >
-              {cards.top_category || "Others"}
-            </Typography>
-            <Typography variant="caption" color={colors.grey[300]}>
-              Highest spending category
-            </Typography>
-          </Box>
-        </Paper>
-
-        <Paper
-          sx={{
-            p: 2,
-            minHeight: 120,
-            bgcolor: colors.primary[400],
-            borderRadius: "14px",
-            border: `1px solid ${colors.primary[300]}`,
-            boxShadow: "0 12px 26px rgba(0,0,0,0.28)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Box textAlign="center">
-            <Typography
-              variant="subtitle2"
-              color={colors.grey[200]}
-              fontWeight="800"
-              sx={{ mb: "4px" }}
-            >
-              Top Bank
-            </Typography>
-            <Typography
-              variant="h4"
-              fontWeight="900"
-              color={colors.greenAccent[400]}
-              sx={{ lineHeight: 1.1 }}
-            >
-              {cards.top_bank || "-"}
-            </Typography>
-            <Typography variant="caption" color={colors.grey[300]}>
-              Highest spending bank
-            </Typography>
-          </Box>
-        </Paper>
-
-        <Paper
-          sx={{
-            p: 2,
-            minHeight: 120,
-            bgcolor: colors.primary[400],
-            borderRadius: "14px",
-            border: `1px solid ${colors.primary[300]}`,
-            boxShadow: "0 12px 26px rgba(0,0,0,0.28)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Box textAlign="center">
-            <Typography
-              variant="subtitle2"
-              color={colors.grey[200]}
-              fontWeight="800"
-              sx={{ mb: "4px" }}
-            >
-              Total Transactions
-            </Typography>
-            <Typography
-              variant="h4"
-              fontWeight="900"
-              color={colors.greenAccent[400]}
-              sx={{ lineHeight: 1.1 }}
-            >
-              {cards.total_transactions ?? 0}
-            </Typography>
-            <Typography variant="caption" color={colors.grey[300]}>
-              Slips uploaded (filtered)
-            </Typography>
-          </Box>
-        </Paper>
+        {[
+          {
+            title: "Total Expenses",
+            value: `${fmtMoney(cards.total_expenses)} ฿`,
+            sub: "Total Spending (filtered)",
+          },
+          {
+            title: "Top Category",
+            value: cards.top_category || "Others",
+            sub: "Highest spending category",
+          },
+          {
+            title: "Top Bank",
+            value: cards.top_bank || "-",
+            sub: "Highest spending bank",
+          },
+          {
+            title: "Total Transactions",
+            value: cards.total_transactions ?? 0,
+            sub: "Slips uploaded (filtered)",
+          },
+        ].map((c) => (
+          <Paper
+            key={c.title}
+            sx={{
+              p: 2,
+              minHeight: 120,
+              bgcolor: colors.primary[400],
+              borderRadius: "14px",
+              border: `1px solid ${colors.primary[300]}`,
+              boxShadow: "0 12px 26px rgba(0,0,0,0.28)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Box textAlign="center">
+              <Typography
+                variant="subtitle2"
+                color={colors.grey[200]}
+                fontWeight="800"
+                sx={{ mb: "4px" }}
+              >
+                {c.title}
+              </Typography>
+              <Typography
+                variant={c.title === "Top Category" ? "h5" : "h4"}
+                fontWeight="900"
+                color={colors.greenAccent[400]}
+                sx={{ lineHeight: 1.1, wordBreak: "break-word" }}
+              >
+                {c.value}
+              </Typography>
+              <Typography variant="caption" color={colors.grey[300]}>
+                {c.sub}
+              </Typography>
+            </Box>
+          </Paper>
+        ))}
       </Box>
 
-      {/* ✅ 4 CHARTS: 2x2 */}
       <Box
         sx={{
           display: "grid",
@@ -617,7 +555,6 @@ const StatisticalInformations = () => {
           alignItems: "stretch",
         }}
       >
-        {/* 1) LINE CHART */}
         <Paper sx={chartCardSx}>
           <Stack
             direction="row"
@@ -629,7 +566,7 @@ const StatisticalInformations = () => {
               1) Expenses Over Time
             </Typography>
             <Typography variant="caption" color={colors.grey[300]}>
-              X: {filterType === "year" ? "Month" : "Day"} • Y: Amount (฿)
+              X: {xAxisLabel} • Y: Amount (฿)
             </Typography>
           </Stack>
 
@@ -642,42 +579,17 @@ const StatisticalInformations = () => {
                 theme={nivoTheme}
                 margin={{ top: 30, right: 30, bottom: 60, left: 70 }}
                 xScale={{ type: "point" }}
-                yScale={{ type: "linear", min: 0, max: "auto" }}
+                yScale={{ type: "linear", min: 0, max: lineYMax }}
                 curve="catmullRom"
                 axisTop={null}
                 axisRight={null}
                 axisBottom={{
-                  legend: filterType === "year" ? "Month" : "Day",
+                  legend: xAxisLabel,
                   legendPosition: "middle",
                   legendOffset: 42,
                   tickRotation: -25,
                   tickPadding: 10,
                   tickSize: 0,
-                  tickValues:
-                    filterType === "year"
-                      ? [
-                          "Jan",
-                          "Feb",
-                          "Mar",
-                          "Apr",
-                          "May",
-                          "Jun",
-                          "Jul",
-                          "Aug",
-                          "Sep",
-                          "Oct",
-                          "Nov",
-                          "Dec",
-                        ]
-                      : (() => {
-                          const xs = (lineData?.[0]?.data || []).map((d) => d.x);
-                          const last = Number(xs[xs.length - 1] || 0);
-                          const fixed = [1, 5, 10, 15, 20, 25].filter(
-                            (d) => d <= last
-                          );
-                          if (last && !fixed.includes(last)) fixed.push(last);
-                          return fixed.map((d) => String(d).padStart(2, "0"));
-                        })(),
                 }}
                 axisLeft={{
                   legend: "Amount (Baht)",
@@ -698,30 +610,32 @@ const StatisticalInformations = () => {
                 enableGridX={false}
                 enableGridY
                 useMesh
-                enablePointLabel={false}
-                markers={[
-                  {
-                    axis: "y",
-                    value: avgValue,
-                    lineStyle: {
-                      stroke: ACCENT.avg,
-                      strokeWidth: 3,
-                      strokeDasharray: "8 6",
-                    },
-                    legend: `Average ${fmtMoney(avgValue)} ฿`,
-                    legendPosition: "top-left",
-                    textStyle: {
-                      fill: ACCENT.avg,
-                      fontSize: 12,
-                      fontWeight: 800,
-                    },
-                  },
-                ]}
+                markers={
+                  filterType === "month"
+                    ? [
+                        {
+                          axis: "y",
+                          value: avgValue,
+                          lineStyle: {
+                            stroke: ACCENT.avg,
+                            strokeWidth: 3,
+                            strokeDasharray: "8 6",
+                          },
+                          legend: `Goal ${fmtMoney(avgValue)} ฿`,
+                          legendPosition: "top-left",
+                          textStyle: {
+                            fill: ACCENT.avg,
+                            fontSize: 12,
+                            fontWeight: 800,
+                          },
+                        },
+                      ]
+                    : []
+                }
                 tooltip={({ point }) => (
                   <div>
                     <div style={{ fontWeight: 900, marginBottom: 4 }}>
-                      {filterType === "year" ? "Month" : "Day"}:{" "}
-                      {point.data.xFormatted}
+                      {xAxisLabel}: {point.data.xFormatted}
                     </div>
                     <div style={{ color: ACCENT.line }}>
                       Amount: {fmtMoney(point.data.yFormatted)} ฿
@@ -733,7 +647,6 @@ const StatisticalInformations = () => {
           </Box>
         </Paper>
 
-        {/* 2) STACKED BAR */}
         <Paper sx={chartCardSx}>
           <Typography fontWeight="900" color={colors.grey[100]} mb={1}>
             2) Category by Bank (Stacked)
@@ -752,10 +665,7 @@ const StatisticalInformations = () => {
                 theme={nivoTheme}
                 margin={{ top: 48, right: 20, bottom: 55, left: 60 }}
                 padding={0.35}
-                innerPadding={0}
-                colors={({ id }) => ACCENT.bank[id] || ACCENT.bank["-"]}
-                borderRadius={0}
-                borderWidth={0}
+                colors={({ id }) => BANK_COLORS[id] || ACCENT.bankFallback}
                 valueScale={{ type: "linear" }}
                 indexScale={{ type: "band", round: true }}
                 axisTop={null}
@@ -776,20 +686,17 @@ const StatisticalInformations = () => {
                   legendOffset: -48,
                   format: (v) => fmtMoney(v),
                 }}
-                enableGridY={true}
+                enableGridY
                 enableGridX={false}
                 enableLabel={false}
                 legends={[
                   {
                     anchor: "top",
                     direction: "row",
-                    justify: false,
-                    translateX: 0,
                     translateY: -42,
                     itemsSpacing: 14,
                     itemWidth: 85,
                     itemHeight: 18,
-                    itemOpacity: 1,
                     symbolSize: 12,
                     symbolShape: "square",
                   },
@@ -809,7 +716,6 @@ const StatisticalInformations = () => {
           </Box>
         </Paper>
 
-        {/* 3) BOXPLOT */}
         <Paper sx={chartCardSx}>
           <Typography fontWeight="900" color={colors.grey[100]} mb={1}>
             3) Spending Spread (Box Plot)
@@ -827,11 +733,7 @@ const StatisticalInformations = () => {
                 layout="vertical"
                 margin={{ top: 10, right: 20, bottom: 70, left: 60 }}
                 colorBy="subGroup"
-                colors={[
-                  ACCENT.paying.QR,
-                  ACCENT.paying.Transfer,
-                  ACCENT.paying.Card,
-                ]}
+                colors={[colors.greenAccent[300]]}
                 borderRadius={10}
                 borderWidth={1}
                 borderColor={{ from: "color", modifiers: [["darker", 0.6]] }}
@@ -853,7 +755,6 @@ const StatisticalInformations = () => {
           </Box>
         </Paper>
 
-        {/* 4) HEATMAP */}
         <Paper sx={chartCardSx}>
           <Typography fontWeight="900" color={colors.grey[100]} mb={1}>
             4) Bank Heatmap
@@ -867,7 +768,6 @@ const StatisticalInformations = () => {
                 data={heatmapData}
                 theme={nivoTheme}
                 margin={{ top: 10, right: 90, bottom: 60, left: 95 }}
-                // ✅ เปลี่ยน scheme เป็น greens ให้เข้ากับ dashboard
                 colors={{
                   type: "sequential",
                   scheme: "greens",
@@ -876,26 +776,24 @@ const StatisticalInformations = () => {
                 }}
                 emptyColor={colors.primary[500]}
                 forceSquare={false}
-                sizeVariation={0}
                 cellOpacity={1}
                 cellBorderWidth={1}
                 cellBorderColor={{
                   from: "color",
                   modifiers: [["darker", 0.25]],
                 }}
-                enableLabels={false} // ✅ ปิด label ใน cell (ของคุณในรูปมันแน่น/รก)
+                enableLabels={true}
+                labelTextColor={colors.grey[100]}
                 legends={[
                   {
                     anchor: "right",
                     translateX: 60,
-                    translateY: 0,
                     length: 220,
                     thickness: 12,
                     direction: "column",
                     tickPosition: "after",
                     tickSize: 3,
                     tickSpacing: 6,
-                    tickOverlap: false,
                     title: "Amount (฿)",
                     titleAlign: "start",
                     titleOffset: 6,
@@ -907,34 +805,9 @@ const StatisticalInformations = () => {
                   tickSize: 0,
                   tickPadding: 10,
                   tickRotation: -25,
-                  legend: filterType === "year" ? "Month" : "Day",
+                  legend: xAxisLabel,
                   legendPosition: "middle",
                   legendOffset: 45,
-                  tickValues:
-                    filterType === "year"
-                      ? [
-                          "Jan",
-                          "Feb",
-                          "Mar",
-                          "Apr",
-                          "May",
-                          "Jun",
-                          "Jul",
-                          "Aug",
-                          "Sep",
-                          "Oct",
-                          "Nov",
-                          "Dec",
-                        ]
-                      : (() => {
-                          const xs = (lineData?.[0]?.data || []).map((d) => d.x);
-                          const last = Number(xs[xs.length - 1] || 0);
-                          const fixed = [1, 5, 10, 15, 20, 25].filter(
-                            (d) => d <= last
-                          );
-                          if (last && !fixed.includes(last)) fixed.push(last);
-                          return fixed.map((d) => String(d).padStart(2, "0"));
-                        })(),
                 }}
                 axisLeft={{
                   tickSize: 0,
@@ -943,12 +816,12 @@ const StatisticalInformations = () => {
                   legendPosition: "middle",
                   legendOffset: -70,
                 }}
-                tooltip={({ xKey, yKey, value }) => (
+                tooltip={({ cell }) => (
                   <div>
                     <div style={{ fontWeight: 900, marginBottom: 4 }}>
-                      {yKey} • {xKey}
+                      {cell.serieId} • {cell.xKey}
                     </div>
-                    <div>Amount: {fmtMoney(value)} ฿</div>
+                    <div>Amount: {fmtMoney(cell.value)} ฿</div>
                   </div>
                 )}
                 animate

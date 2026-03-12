@@ -11,9 +11,13 @@ import {
   Alert,
   Chip,
   useMediaQuery,
+  Stack,
 } from "@mui/material";
 import FolderOpenOutlinedIcon from "@mui/icons-material/FolderOpenOutlined";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
+import PhotoLibraryOutlinedIcon from "@mui/icons-material/PhotoLibraryOutlined";
+import ReceiptLongOutlinedIcon from "@mui/icons-material/ReceiptLongOutlined";
+import PaymentsOutlinedIcon from "@mui/icons-material/PaymentsOutlined";
 
 import Header from "../components/Header";
 import { tokens } from "../theme";
@@ -32,10 +36,24 @@ const FALLBACK_CATEGORIES = [
 function formatMoneyTHB(v) {
   const n = Number(v ?? 0);
   try {
-    return n.toLocaleString("th-TH", { style: "currency", currency: "THB" });
+    return n.toLocaleString("th-TH", {
+      style: "currency",
+      currency: "THB",
+    });
   } catch {
     return `${n.toFixed(2)} THB`;
   }
+}
+
+function formatDateEN(v) {
+  if (!v) return "No recent item";
+  return new Date(v).toLocaleString("th-TH-u-ca-gregory", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export default function AlbumCategoryPage() {
@@ -51,7 +69,11 @@ export default function AlbumCategoryPage() {
   const [summary, setSummary] = useState(null);
 
   const token = useMemo(
-    () => localStorage.getItem("token") || sessionStorage.getItem("token"),
+    () =>
+      localStorage.getItem("token") ||
+      sessionStorage.getItem("token") ||
+      localStorage.getItem("access_token") ||
+      sessionStorage.getItem("access_token"),
     []
   );
 
@@ -101,143 +123,271 @@ export default function AlbumCategoryPage() {
   }, [summary]);
 
   return (
-    <Box m={{ xs: "12px", sm: "16px", md: "20px" }}>
+    <Box sx={{ m: { xs: 1.5, sm: 2, md: "20px" } }}>
       <Header title="ALBUM CATEGORY" subtitle="Finance folders" />
 
       <Box display="flex" justifyContent="center" alignItems="flex-start">
         <Paper
-          elevation={6}
+          elevation={0}
           sx={{
             width: "100%",
-            maxWidth: "1100px",
-            p: { xs: "16px", sm: "20px", md: "32px" },
+            maxWidth: "1150px",
+            mt: 2,
+            p: { xs: 2, sm: 2.5, md: 3 },
             backgroundColor: colors.primary[400],
-            borderRadius: "16px",
+            borderRadius: "18px",
+            border: `1px solid ${colors.primary[500]}`,
+            boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
           }}
         >
-          <Box textAlign="center" mb={{ xs: 2, md: 3 }}>
-            <Typography
-              variant={isSmDown ? "h5" : "h4"}
-              fontWeight="700"
-              color={colors.grey[100]}
+          <Box
+            sx={{
+              mb: 3,
+              p: { xs: 2, md: 2.5 },
+              borderRadius: "16px",
+              background: `linear-gradient(135deg, ${colors.primary[500]} 0%, ${colors.primary[400]} 100%)`,
+              border: `1px solid ${colors.primary[500]}`,
+            }}
+          >
+            <Stack
+              direction={{ xs: "column", md: "row" }}
+              spacing={2}
+              justifyContent="space-between"
+              alignItems={{ xs: "flex-start", md: "center" }}
             >
-              Finance Album Folders
-            </Typography>
-            <Typography variant="body2" color={colors.grey[300]} mt="8px">
-              Tap a folder to open items inside
-            </Typography>
+              <Box>
+                <Typography
+                  sx={{
+                    color: colors.grey[100],
+                    fontWeight: 800,
+                    fontSize: { xs: 22, md: 26 },
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1,
+                  }}
+                >
+                  <PhotoLibraryOutlinedIcon />
+                  Finance Album Folders
+                </Typography>
+
+                <Typography
+                  variant="body2"
+                  sx={{
+                    mt: 0.75,
+                    color: colors.grey[300],
+                    maxWidth: 620,
+                    lineHeight: 1.7,
+                  }}
+                >
+                  เปิดดูรายการสลิปและธุรกรรมตามหมวดหมู่การใช้จ่ายของคุณได้จากที่นี่
+                </Typography>
+              </Box>
+
+              <Chip
+                label={`${categories.length} categories`}
+                sx={{
+                  fontWeight: 700,
+                  backgroundColor: colors.greenAccent[600],
+                  color: "#111",
+                }}
+              />
+            </Stack>
           </Box>
 
-          <Divider sx={{ mb: "18px", borderColor: colors.grey[700] }} />
+          <Divider sx={{ mb: 3, borderColor: colors.primary[500] }} />
 
           {loading && (
-            <Box display="flex" alignItems="center" justifyContent="center" py={2} gap={1.5}>
-              <CircularProgress size={18} />
-              <Typography color={colors.grey[300]}>Loading categories...</Typography>
+            <Box
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+              py={5}
+              gap={1.5}
+            >
+              <CircularProgress size={22} />
+              <Typography color={colors.grey[300]}>
+                Loading categories...
+              </Typography>
             </Box>
           )}
 
           {!loading && error && (
             <Box mb={2}>
-              <Alert severity="error">{error}</Alert>
+              <Alert severity="error" sx={{ borderRadius: "12px" }}>
+                {error}
+              </Alert>
             </Box>
           )}
 
-          <Grid container spacing={{ xs: 1.5, md: 2 }}>
-            {categories.map((c) => {
-              const coverUrl = c.cover_path ? `${API_BASE}${c.cover_path}` : null;
+          {!loading && !error && (
+            <Grid
+  container
+  spacing={{ xs: 1.5, md: 2 }}
+  justifyContent="center"
+>
+              {categories.map((c) => {
+                const coverUrl = c.cover_path ? `${API_BASE}${c.cover_path}` : null;
 
-              return (
-                <Grid
-                  key={c.key}
-                  item
-                  xs={12}
-                  sm={6}
-                  md={6}
-                  lg={4} // ✅ จอกว้างมากจะเป็น 3 คอลัมน์
-                >
-                  <Button
-                    onClick={() => navigate(`/finance/categories/${c.key}`)}
-                    fullWidth
-                    disableElevation
-                    sx={{ textTransform: "none", p: 0, borderRadius: "14px" }}
+                return (
+                  <Grid
+                    key={c.key}
+                    item
+                    xs={12}
+                    sm={6}
+                    md={6}
+                    lg={4}
                   >
-                    <Box
+                    <Button
+                      onClick={() => navigate(`/finance/categories/${c.key}`)}
+                      fullWidth
+                      disableElevation
                       sx={{
-                        width: "100%",
-                        borderRadius: "14px",
-                        p: { xs: "14px", md: "18px" },
-                        backgroundColor: colors.primary[500],
-                        border: `1px solid ${colors.grey[700]}`,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 2,
-                        transition: "0.25s",
-                        "&:hover": isMdUp
-                          ? { backgroundColor: colors.primary[600], transform: "translateY(-2px)" }
-                          : undefined,
+                        p: 0,
+                        borderRadius: "16px",
+                        textTransform: "none",
+                        display: "block",
                       }}
                     >
                       <Box
                         sx={{
-                          width: { xs: 48, md: 54 },
-                          height: { xs: 48, md: 54 },
-                          borderRadius: "12px",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          backgroundColor: colors.primary[400],
-                          border: `1px solid ${colors.grey[700]}`,
-                          color: colors.greenAccent[400],
-                          flexShrink: 0,
+                          width: "100%",
+                          borderRadius: "16px",
+                          p: { xs: 1.75, md: 2 },
+                          backgroundColor: colors.primary[500],
+                          border: `1px solid ${colors.primary[600] || colors.grey[700]}`,
+                          transition: "0.25s ease",
+                          textAlign: "left",
+                          boxShadow: "0 6px 18px rgba(0,0,0,0.08)",
+                          "&:hover": isMdUp
+                            ? {
+                                backgroundColor: colors.primary[600],
+                                transform: "translateY(-3px)",
+                                boxShadow: "0 14px 28px rgba(0,0,0,0.18)",
+                              }
+                            : undefined,
                         }}
                       >
-                        <FolderOpenOutlinedIcon />
-                      </Box>
-
-                      <Box sx={{ flex: 1, textAlign: "left", minWidth: 0 }}>
-                        <Typography
-                          variant="h6"
-                          fontWeight={700}
-                          color={colors.grey[100]}
-                          noWrap
+                        <Box
+                          display="flex"
+                          alignItems="flex-start"
+                          gap={2}
                         >
-                          {c.label}
-                        </Typography>
+                          <Box
+                            sx={{
+                              width: { xs: 52, md: 58 },
+                              height: { xs: 52, md: 58 },
+                              borderRadius: "14px",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              backgroundColor: colors.primary[400],
+                              border: `1px solid ${colors.primary[600] || colors.grey[700]}`,
+                              color: colors.greenAccent[400],
+                              flexShrink: 0,
+                            }}
+                          >
+                            <FolderOpenOutlinedIcon />
+                          </Box>
 
-                        <Box mt="6px" display="flex" alignItems="center" gap={1} flexWrap="wrap">
-                          <Chip
-                            size="small"
-                            label={`${c.tx_count ?? 0} items`}
-                            sx={{
-                              backgroundColor: colors.primary[400],
-                              color: colors.grey[200],
-                              border: `1px solid ${colors.grey[700]}`,
-                            }}
-                          />
-                          <Chip
-                            size="small"
-                            label={formatMoneyTHB(c.total_amount)}
-                            sx={{
-                              backgroundColor: colors.primary[400],
-                              color: colors.greenAccent[200],
-                              border: `1px solid ${colors.grey[700]}`,
-                            }}
-                          />
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Box
+                              display="flex"
+                              alignItems="center"
+                              justifyContent="space-between"
+                              gap={1}
+                            >
+                              <Typography
+                                variant={isSmDown ? "body1" : "h6"}
+                                fontWeight={800}
+                                color={colors.grey[100]}
+                                noWrap
+                              >
+                                {c.label}
+                              </Typography>
+
+                              <Box
+                                sx={{
+                                  color: colors.grey[400],
+                                  display: "flex",
+                                  alignItems: "center",
+                                  flexShrink: 0,
+                                }}
+                              >
+                                <ChevronRightRoundedIcon />
+                              </Box>
+                            </Box>
+
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                mt: 0.5,
+                                color: colors.grey[400],
+                                fontSize: 13,
+                              }}
+                            >
+                              แตะเพื่อเปิดดูรายการในหมวดนี้
+                            </Typography>
+
+                            <Box
+                              mt={1.5}
+                              display="flex"
+                              alignItems="center"
+                              gap={1}
+                              flexWrap="wrap"
+                            >
+                              <Chip
+                                size="small"
+                                icon={<ReceiptLongOutlinedIcon />}
+                                label={`${c.tx_count ?? 0} items`}
+                                sx={{
+                                  backgroundColor: colors.primary[400],
+                                  color: colors.grey[200],
+                                  border: `1px solid ${colors.primary[600] || colors.grey[700]}`,
+                                  "& .MuiChip-icon": {
+                                    color: colors.grey[300],
+                                  },
+                                }}
+                              />
+
+                              <Chip
+                                size="small"
+                                icon={<PaymentsOutlinedIcon />}
+                                label={formatMoneyTHB(c.total_amount)}
+                                sx={{
+                                  backgroundColor: colors.primary[400],
+                                  color: colors.greenAccent[200],
+                                  border: `1px solid ${colors.primary[600] || colors.grey[700]}`,
+                                  "& .MuiChip-icon": {
+                                    color: colors.greenAccent[300],
+                                  },
+                                }}
+                              />
+                            </Box>
+                          </Box>
                         </Box>
 
-                        <Box mt="10px" display="flex" alignItems="center" gap={1.5}>
+                        <Box
+                          mt={2}
+                          pt={1.75}
+                          sx={{
+                            borderTop: `1px solid ${colors.primary[600] || colors.grey[700]}`,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 1.5,
+                          }}
+                        >
                           {coverUrl ? (
                             <Box
                               component="img"
                               src={coverUrl}
                               alt={`${c.label} cover`}
                               sx={{
-                                width: 54,
-                                height: 40,
+                                width: 64,
+                                height: 46,
                                 borderRadius: "10px",
                                 objectFit: "cover",
-                                border: `1px solid ${colors.grey[700]}`,
+                                border: `1px solid ${colors.primary[600] || colors.grey[700]}`,
+                                flexShrink: 0,
                               }}
                               onError={(e) => {
                                 e.currentTarget.style.display = "none";
@@ -246,33 +396,47 @@ export default function AlbumCategoryPage() {
                           ) : (
                             <Box
                               sx={{
-                                width: 54,
-                                height: 40,
+                                width: 64,
+                                height: 46,
                                 borderRadius: "10px",
-                                border: `1px dashed ${colors.grey[700]}`,
+                                border: `1px dashed ${colors.primary[600] || colors.grey[700]}`,
                                 backgroundColor: colors.primary[400],
                                 opacity: 0.9,
+                                flexShrink: 0,
                               }}
                             />
                           )}
 
-                          <Typography variant="caption" color={colors.grey[400]} noWrap>
-                            {c.latest_at
-                              ? `Latest: ${new Date(c.latest_at).toLocaleString("th-TH")}`
-                              : "No recent item"}
-                          </Typography>
+                          <Box sx={{ minWidth: 0 }}>
+                            <Typography
+                              sx={{
+                                color: colors.grey[400],
+                                fontSize: 12,
+                                mb: 0.25,
+                              }}
+                            >
+                              Latest activity
+                            </Typography>
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: colors.grey[300],
+                                display: "block",
+                                fontSize: 12.5,
+                              }}
+                              noWrap
+                            >
+                              {formatDateEN(c.latest_at)}
+                            </Typography>
+                          </Box>
                         </Box>
                       </Box>
-
-                      <Box sx={{ color: colors.grey[400], display: "flex", alignItems: "center" }}>
-                        <ChevronRightRoundedIcon />
-                      </Box>
-                    </Box>
-                  </Button>
-                </Grid>
-              );
-            })}
-          </Grid>
+                    </Button>
+                  </Grid>
+                );
+              })}
+            </Grid>
+          )}
         </Paper>
       </Box>
     </Box>

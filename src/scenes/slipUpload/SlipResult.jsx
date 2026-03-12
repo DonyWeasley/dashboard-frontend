@@ -20,15 +20,28 @@ import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { TimePicker } from "@mui/x-date-pickers/TimePicker";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
-
-
+import Autocomplete from "@mui/material/Autocomplete";
 
 const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
 
 const ICON_BASE = `${process.env.PUBLIC_URL}/assets/icons`;
 
+const BANK_OPTIONS = [
+  "ธนาคารกรุงเทพ",
+  "ธนาคารกสิกรไทย",
+  "ธนาคารกรุงไทย",
+  "ธนาคารไทยพาณิชย์",
+  "ธนาคารทหารไทยธนชาต",
+  "ธนาคารออมสิน",
+  "TrueMoney Wallet",
+];
+
 const CATEGORIES = [
-  { key: "Food&Drink", label: "Food & Drink", icon: `${ICON_BASE}/food-drink.png` },
+  {
+    key: "Food&Drink",
+    label: "Food & Drink",
+    icon: `${ICON_BASE}/food-drink.png`,
+  },
   { key: "Transport", label: "Transport", icon: `${ICON_BASE}/transport.png` },
   { key: "Shopping", label: "Shopping", icon: `${ICON_BASE}/shopping.png` },
   { key: "Utilities", label: "Utilities", icon: `${ICON_BASE}/utilities.png` },
@@ -125,6 +138,31 @@ export default function SlipResult() {
   const { state } = useLocation();
   const navigate = useNavigate();
 
+  const handleCancel = async () => {
+    try {
+      if (!transactionId) {
+        navigate("/slip-upload");
+        return;
+      }
+
+      if (!token) {
+        navigate("/slip-upload");
+        return;
+      }
+
+      await fetch(`${API_BASE}/transactions/${transactionId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      navigate("/slip-upload");
+    } catch (err) {
+      navigate("/slip-upload");
+    }
+  };
+
   const previewUrl = state?.previewUrl;
   const ocr = state?.ocr;
 
@@ -147,7 +185,7 @@ export default function SlipResult() {
 
   const guessedCategory = useMemo(
     () => guessCategoryFromText(ocrText),
-    [ocrText]
+    [ocrText],
   );
 
   const initial = useMemo(
@@ -160,7 +198,7 @@ export default function SlipResult() {
       category:
         ocr?.category || ocr?.suggested_category || guessedCategory || "Others",
     }),
-    [ocr, ocrText, guessedCategory]
+    [ocr, ocrText, guessedCategory],
   );
 
   const [form, setForm] = useState(initial);
@@ -168,16 +206,16 @@ export default function SlipResult() {
   const [saveErr, setSaveErr] = useState("");
 
   const [dateVal, setDateVal] = useState(() =>
-    initial.date ? dayjs(initial.date, ["YYYY-MM-DD", "DD/MM/YY"]) : null
+    initial.date ? dayjs(initial.date, ["YYYY-MM-DD", "DD/MM/YY"]) : null,
   );
   const [timeVal, setTimeVal] = useState(() =>
-    initial.time ? dayjs(initial.time, "HH:mm") : null
+    initial.time ? dayjs(initial.time, "HH:mm") : null,
   );
 
   useEffect(() => {
     setForm(initial);
     setDateVal(
-      initial.date ? dayjs(initial.date, ["YYYY-MM-DD", "DD/MM/YY"]) : null
+      initial.date ? dayjs(initial.date, ["YYYY-MM-DD", "DD/MM/YY"]) : null,
     );
     setTimeVal(initial.time ? dayjs(initial.time, "HH:mm") : null);
   }, [initial]);
@@ -225,7 +263,7 @@ export default function SlipResult() {
       if (!token) throw new Error("No token found. Please login first.");
       if (!transactionId) {
         throw new Error(
-          "Missing transaction_id (please upload again so backend returns transaction_id)."
+          "Missing transaction_id (please upload again so backend returns transaction_id).",
         );
       }
 
@@ -441,12 +479,27 @@ export default function SlipResult() {
             </Box>
 
             <Stack spacing={2}>
-              <TextField
-                label="Bank"
-                value={form.bank}
-                onChange={setField("bank")}
+              <Autocomplete
+                options={BANK_OPTIONS}
+                value={form.bank || null}
+                onChange={(_, newValue) => {
+                  setForm((p) => ({ ...p, bank: newValue || "" }));
+                }}
+                inputValue={form.bank || ""}
+                onInputChange={(_, newInputValue) => {
+                  // ✅ ให้พิมพ์ได้ด้วย (กรณี bank ไม่อยู่ใน list)
+                  setForm((p) => ({ ...p, bank: newInputValue || "" }));
+                }}
+                freeSolo
                 fullWidth
-                sx={textFieldSx}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Bank"
+                    placeholder="เลือกธนาคาร หรือพิมพ์เอง"
+                    sx={textFieldSx}
+                  />
+                )}
               />
 
               <LocalizationProvider dateAdapter={AdapterDayjs}>
@@ -534,7 +587,7 @@ export default function SlipResult() {
               <Button
                 fullWidth
                 variant="outlined"
-                onClick={() => navigate(-1)}
+                onClick={handleCancel}
                 sx={{
                   color: colors.greenAccent[300],
                   borderColor: colors.greenAccent[300],
@@ -591,10 +644,16 @@ export default function SlipResult() {
                 backgroundColor: colors.primary[600],
               }}
             >
-              <Typography variant="h5" fontWeight={1000} color={colors.grey[100]}>
+              <Typography
+                variant="h5"
+                fontWeight={1000}
+                color={colors.grey[100]}
+              >
                 Category
               </Typography>
-              <Typography sx={{ color: colors.grey[300], mt: 0.5, fontSize: 13 }}>
+              <Typography
+                sx={{ color: colors.grey[300], mt: 0.5, fontSize: 13 }}
+              >
                 ถ้า OCR เดาผิด ให้เลือกใหม่ได้เลย
               </Typography>
             </Box>
@@ -633,7 +692,9 @@ export default function SlipResult() {
                       border: active
                         ? `2px solid ${colors.greenAccent[400]}`
                         : `1px solid ${colors.grey[700]}`,
-                      boxShadow: active ? "0 10px 24px rgba(0,0,0,0.25)" : "none",
+                      boxShadow: active
+                        ? "0 10px 24px rgba(0,0,0,0.25)"
+                        : "none",
                       transform: active ? "scale(1.02)" : "scale(1)",
                       transition: "0.15s",
                       "&:hover": {
@@ -686,10 +747,16 @@ export default function SlipResult() {
                 backgroundColor: colors.primary[600],
               }}
             >
-              <Typography variant="h5" fontWeight={1000} color={colors.grey[100]}>
+              <Typography
+                variant="h5"
+                fontWeight={1000}
+                color={colors.grey[100]}
+              >
                 Category
               </Typography>
-              <Typography sx={{ color: colors.grey[300], mt: 0.5, fontSize: 13 }}>
+              <Typography
+                sx={{ color: colors.grey[300], mt: 0.5, fontSize: 13 }}
+              >
                 ถ้า OCR เดาผิด ให้เลือกใหม่ได้เลย
               </Typography>
             </Box>

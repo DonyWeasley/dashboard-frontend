@@ -1,6 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Sidebar, Menu, MenuItem, ProSidebarProvider } from "react-pro-sidebar";
-import { Box, Typography, useTheme, Avatar, Drawer } from "@mui/material";
+import {
+  Box,
+  Typography,
+  useTheme,
+  Avatar,
+  Drawer,
+  CircularProgress,
+} from "@mui/material";
 import { Link } from "react-router-dom";
 import { tokens } from "../../theme";
 
@@ -9,9 +16,19 @@ import DocumentScannerOutlinedIcon from "@mui/icons-material/DocumentScannerOutl
 import ReceiptLongOutlinedIcon from "@mui/icons-material/ReceiptLongOutlined";
 import AnalyticsOutlinedIcon from "@mui/icons-material/AnalyticsOutlined";
 import MenuOutlinedIcon from "@mui/icons-material/MenuOutlined";
+import { BiSolidPhotoAlbum } from "react-icons/bi";
+import { LuGoal } from "react-icons/lu";
 
 const DRAWER_WIDTH = 280;
 const COLLAPSED_WIDTH = 80;
+const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
+
+const getToken = () =>
+  localStorage.getItem("token") ||
+  sessionStorage.getItem("token") ||
+  localStorage.getItem("access_token") ||
+  sessionStorage.getItem("access_token") ||
+  "";
 
 const Item = ({ title, to, icon, selected, setSelected, onSelect }) => {
   const theme = useTheme();
@@ -43,6 +60,53 @@ const SidebarContent = ({
   const colors = tokens(theme.palette.mode);
 
   const [selected, setSelected] = useState("Dashboard");
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [userInfo, setUserInfo] = useState({
+    displayName: "User",
+    role: "User",
+    profileImageUrl: "",
+  });
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      setLoadingProfile(true);
+
+      try {
+        const token = getToken();
+
+        const res = await fetch(`${API_BASE}/profile/`, {
+          method: "GET",
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
+
+        const text = await res.text();
+        if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
+
+        const data = text ? JSON.parse(text) : {};
+
+        setUserInfo({
+          displayName: data?.display_name || data?.username || "User",
+          role: "User",
+          profileImageUrl: data?.profile_image_url
+            ? `${API_BASE}${data.profile_image_url}`
+            : "",
+        });
+      } catch (error) {
+        console.error("Failed to load sidebar profile:", error);
+        setUserInfo({
+          displayName: "User",
+          role: "User",
+          profileImageUrl: "",
+        });
+      } finally {
+        setLoadingProfile(false);
+      }
+    };
+
+    fetchProfile();
+  }, []);
 
   const handleToggle = () => {
     if (isMobile) {
@@ -75,7 +139,6 @@ const SidebarContent = ({
           style={{ height: "100%" }}
         >
           <Menu>
-            {/* TOGGLE */}
             <MenuItem
               icon={<MenuOutlinedIcon />}
               onClick={handleToggle}
@@ -90,16 +153,41 @@ const SidebarContent = ({
 
             {!collapsed && (
               <Box mb={2} textAlign="center" sx={{ px: 2 }}>
-                <Avatar
-                  src="/assets/user.png"
-                  sx={{ width: 90, height: 90, margin: "0 auto", mb: 1 }}
-                />
-                <Typography variant="h6" fontWeight="600" color={colors.grey[100]}>
-                  Dony
-                </Typography>
-                <Typography variant="body2" color={colors.greenAccent[400]}>
-                  User
-                </Typography>
+                {loadingProfile ? (
+                  <Box
+                    sx={{
+                      minHeight: 150,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 1.5,
+                    }}
+                  >
+                    <CircularProgress size={26} />
+                    <Typography variant="body2" color={colors.grey[300]}>
+                      Loading profile...
+                    </Typography>
+                  </Box>
+                ) : (
+                  <>
+                    <Avatar
+                      src={userInfo.profileImageUrl || "/assets/user.png"}
+                      alt={userInfo.displayName}
+                      sx={{ width: 90, height: 90, margin: "0 auto", mb: 1 }}
+                    />
+                    <Typography
+                      variant="h6"
+                      fontWeight="600"
+                      color={colors.grey[100]}
+                    >
+                      {userInfo.displayName || "User"}
+                    </Typography>
+                    <Typography variant="body2" color={colors.greenAccent[400]}>
+                      {userInfo.role}
+                    </Typography>
+                  </>
+                )}
               </Box>
             )}
 
@@ -117,9 +205,27 @@ const SidebarContent = ({
             </Typography>
 
             <Item
+              title="Goal"
+              to="/goal"
+              icon={<LuGoal />}
+              selected={selected}
+              setSelected={setSelected}
+              onSelect={isMobile ? onClose : undefined}
+            />
+
+            <Item
               title="Attached transfer slip"
               to="/slip-upload"
               icon={<DocumentScannerOutlinedIcon />}
+              selected={selected}
+              setSelected={setSelected}
+              onSelect={isMobile ? onClose : undefined}
+            />
+
+            <Item
+              title="Album Categories"
+              to="/finance/categories"
+              icon={<BiSolidPhotoAlbum />}
               selected={selected}
               setSelected={setSelected}
               onSelect={isMobile ? onClose : undefined}
@@ -158,13 +264,10 @@ const AppSidebar = ({
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
 
-  // ✅ ย้าย state มาไว้ที่นี่ เพื่อให้ "กล่องครอบ" เปลี่ยน width ตาม
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  // mobile ไม่ต้อง collapsed
   const collapsed = isMobile ? false : isCollapsed;
 
-  // ✅ MOBILE: Drawer
   if (isMobile) {
     return (
       <Drawer
@@ -185,10 +288,8 @@ const AppSidebar = ({
     );
   }
 
-  // ✅ DESKTOP: hide sidebar entirely
   if (!isSidebar) return null;
 
-  // ✅ DESKTOP: wrapper width เปลี่ยนตาม collapsed
   const sidebarW = collapsed ? COLLAPSED_WIDTH : DRAWER_WIDTH;
 
   return (

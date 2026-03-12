@@ -14,7 +14,7 @@ import {
   FormControlLabel,
   CircularProgress,
 } from "@mui/material";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
@@ -30,14 +30,25 @@ const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
 
 export default function Login({ setIsLogin }) {
   const nav = useNavigate();
+  const location = useLocation();
 
-  const [form, setForm] = useState({ email: "", password: "", remember: true });
+  const from = location.state?.from?.pathname || "/";
+
+  const [form, setForm] = useState({
+    usernameOrEmail: "",
+    password: "",
+    remember: true,
+  });
+
   const [err, setErr] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const onChange = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
-  const onToggleRemember = (e) => setForm((p) => ({ ...p, remember: e.target.checked }));
+  const onChange = (k) => (e) =>
+    setForm((p) => ({ ...p, [k]: e.target.value }));
+
+  const onToggleRemember = (e) =>
+    setForm((p) => ({ ...p, remember: e.target.checked }));
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -45,10 +56,10 @@ export default function Login({ setIsLogin }) {
     setLoading(true);
 
     try {
-      const username = form.email.trim();
+      const username = form.usernameOrEmail.trim();
       const password = form.password || "";
 
-      if (!username) throw new Error("Please enter your username");
+      if (!username) throw new Error("Please enter your username or email");
       if (!password) throw new Error("Please enter your password");
 
       const body = new URLSearchParams();
@@ -62,24 +73,40 @@ export default function Login({ setIsLogin }) {
       });
 
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `HTTP ${res.status}`);
+        let message = `HTTP ${res.status}`;
+        try {
+          const errorData = await res.json();
+          message = errorData?.detail || message;
+        } catch {
+          const text = await res.text();
+          message = text || message;
+        }
+        throw new Error(message);
       }
 
       const data = await res.json();
       const token = data?.access_token;
-      if (!token) throw new Error("Login succeeded but no access_token returned");
+      if (!token) {
+        throw new Error("Login succeeded but no access_token returned");
+      }
 
       const storage = form.remember ? localStorage : sessionStorage;
-      storage.setItem("token", token);
-      storage.setItem("user", JSON.stringify({ username }));
+      const otherStorage = form.remember ? sessionStorage : localStorage;
 
-      const other = form.remember ? sessionStorage : localStorage;
-      other.removeItem("token");
-      other.removeItem("user");
+      storage.setItem("token", token);
+      storage.setItem(
+        "user",
+        JSON.stringify({
+          usernameOrEmail: username,
+        })
+      );
+
+      otherStorage.removeItem("token");
+      otherStorage.removeItem("user");
+      otherStorage.removeItem("mock_user");
 
       setIsLogin(true);
-      nav("/");
+      nav(from, { replace: true });
     } catch (ex) {
       setErr(ex?.message || "Login failed");
     } finally {
@@ -87,7 +114,6 @@ export default function Login({ setIsLogin }) {
     }
   };
 
-  // ✅ Dark input style (match dashboard theme) + fix autofill background
   const darkFieldSx = {
     "& .MuiOutlinedInput-root": {
       borderRadius: 999,
@@ -122,8 +148,6 @@ export default function Login({ setIsLogin }) {
       fontWeight: 700,
     },
     "& .MuiInputLabel-root.Mui-focused": { color: "#20DEC8" },
-
-    // autofill (Chrome)
     "& input:-webkit-autofill": {
       WebkitBoxShadow: "0 0 0 1000px rgba(14,22,40,1) inset !important",
       WebkitTextFillColor: "#EAF2FF !important",
@@ -159,7 +183,6 @@ export default function Login({ setIsLogin }) {
         background: pageBg,
       }}
     >
-      {/* Background rings / dots */}
       <Box
         aria-hidden
         sx={{
@@ -202,7 +225,6 @@ export default function Login({ setIsLogin }) {
         }}
       />
 
-      {/* Main Card */}
       <Paper
         elevation={0}
         sx={{
@@ -226,7 +248,6 @@ export default function Login({ setIsLogin }) {
             minHeight: { xs: "auto", md: 560 },
           }}
         >
-          {/* LEFT - FORM */}
           <Box sx={{ p: { xs: 3, md: 5 } }}>
             <Stack spacing={2.2}>
               <Box
@@ -273,12 +294,12 @@ export default function Login({ setIsLogin }) {
                 <TextField
                   variant="outlined"
                   fullWidth
-                  label="Username"
-                  value={form.email}
-                  onChange={onChange("email")}
+                  label="Username or Email"
+                  value={form.usernameOrEmail}
+                  onChange={onChange("usernameOrEmail")}
                   required
                   autoFocus
-                  placeholder="Username"
+                  placeholder="Username or Email"
                   sx={darkFieldSx}
                   InputProps={{
                     sx: { borderRadius: 999 },
@@ -423,7 +444,6 @@ export default function Login({ setIsLogin }) {
             </Stack>
           </Box>
 
-          {/* RIGHT - ILLUSTRATION (✅ mobile = no overlap, desktop = orbit style) */}
           <Box
             sx={{
               p: { xs: 3, md: 5 },
@@ -437,7 +457,6 @@ export default function Login({ setIsLogin }) {
               borderTop: { xs: "1px solid rgba(255,255,255,0.08)", md: "none" },
             }}
           >
-            {/* ===== MOBILE (xs/sm): no absolute, no overlap ===== */}
             <Box
               sx={{
                 display: { xs: "flex", md: "none" },
@@ -518,7 +537,6 @@ export default function Login({ setIsLogin }) {
               </Box>
             </Box>
 
-            {/* ===== DESKTOP (md+): orbit layout ===== */}
             <Box
               sx={{
                 display: { xs: "none", md: "grid" },

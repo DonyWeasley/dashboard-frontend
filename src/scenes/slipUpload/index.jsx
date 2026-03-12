@@ -7,6 +7,11 @@ import {
   Divider,
   CircularProgress,
   Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from "@mui/material";
 import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
 import CloudUploadOutlinedIcon from "@mui/icons-material/CloudUploadOutlined";
@@ -18,7 +23,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
-
 
 const LoadingOverlay = ({ open, progress = 0, done = false, colors }) => {
   if (!open) return null;
@@ -57,14 +61,13 @@ const LoadingOverlay = ({ open, progress = 0, done = false, colors }) => {
           fontWeight={800}
           sx={{ color: colors.grey[100], mb: 0.75 }}
         >
-          {done ? "Completed " : "Processing your slip "}
+          {done ? "Completed" : "Processing your slip"}
         </Typography>
 
         <Typography sx={{ color: colors.grey[300], mb: 2.25 }}>
           {done ? "OCR finished successfully" : "Please wait… OCR is extracting"}
         </Typography>
 
-        {/* Circle Water Loader */}
         <Box sx={{ display: "flex", justifyContent: "center" }}>
           <Box
             sx={{
@@ -78,7 +81,6 @@ const LoadingOverlay = ({ open, progress = 0, done = false, colors }) => {
               boxShadow: "inset 0 0 0 6px rgba(255,255,255,0.03)",
             }}
           >
-            
             <Box
               sx={{
                 position: "absolute",
@@ -91,7 +93,6 @@ const LoadingOverlay = ({ open, progress = 0, done = false, colors }) => {
               }}
             />
 
-     
             <Box
               sx={{
                 position: "absolute",
@@ -110,7 +111,6 @@ const LoadingOverlay = ({ open, progress = 0, done = false, colors }) => {
               }}
             />
 
-            {/* Wave layer 2 */}
             <Box
               sx={{
                 position: "absolute",
@@ -129,7 +129,6 @@ const LoadingOverlay = ({ open, progress = 0, done = false, colors }) => {
               }}
             />
 
-            {/* Center text / check */}
             <Box
               sx={{
                 position: "absolute",
@@ -190,11 +189,12 @@ const SlipUpload = () => {
   const [resp, setResp] = useState(null);
   const [error, setError] = useState("");
 
- 
   const [progress, setProgress] = useState(0);
   const [done, setDone] = useState(false);
 
-  
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [duplicateInfo, setDuplicateInfo] = useState(null);
+
   const previewUrl = useMemo(() => {
     if (!selectedFile) return null;
     return URL.createObjectURL(selectedFile);
@@ -212,33 +212,66 @@ const SlipUpload = () => {
     setSelectedFile(f);
     setResp(null);
     setError("");
+    setDuplicateInfo(null);
+    setDuplicateOpen(false);
   };
 
-  const handleUpload = async () => {
+  const startFakeProgress = () => {
+    return setInterval(() => {
+      setProgress((p) => {
+        if (p >= 90) return 90;
+        const step = p < 60 ? 3 : p < 80 ? 1.5 : 0.8;
+        return Math.min(90, p + step);
+      });
+    }, 120);
+  };
+
+
+  const goToResult = async (data) => {
+    setResp(data);
+    setProgress(100);
+    setDone(true);
+
+    await new Promise((r) => setTimeout(r, 650));
+
+    navigate("/slip/result", {
+      state: {
+        previewUrl,
+        ocr: {
+          ...(data?.extracted || {}),
+          memo: data?.memo ?? data?.extracted?.memo ?? null,
+          suggested_category:
+            data?.suggested_category ??
+            data?.extracted?.suggested_category ??
+            null,
+          category_required:
+            data?.category_required ??
+            data?.extracted?.category_required ??
+            false,
+          transaction_id: data?.transaction_id ?? null,
+        },
+        transaction_id: data?.transaction_id ?? null,
+      },
+    });
+  };
+
+  const uploadSlip = async (forceUpload = false) => {
     if (!selectedFile) {
-      alert("Please select a file first");
-      return;
+      throw new Error("Please select a file first");
     }
 
     setLoading(true);
     setDone(false);
     setProgress(0);
-
     setResp(null);
     setError("");
 
-    
-    let timer = setInterval(() => {
-      setProgress((p) => {
-        if (p >= 90) return 90;
-        const step = p < 60 ? 3 : p < 80 ? 1.5 : 0.8; // ใกล้เต็มจะช้าลง
-        return Math.min(90, p + step);
-      });
-    }, 120);
+    let timer = startFakeProgress();
 
     try {
       const formData = new FormData();
       formData.append("file", selectedFile);
+      formData.append("force_upload", String(forceUpload));
 
       const token =
         localStorage.getItem("token") || sessionStorage.getItem("token");
@@ -249,43 +282,29 @@ const SlipUpload = () => {
         body: formData,
       });
 
+      const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `HTTP ${res.status}`);
+        throw new Error(data?.detail || `HTTP ${res.status}`);
       }
 
-      const data = await res.json();
-      setResp(data);
+      if (data?.duplicate === true && !forceUpload) {
+        clearInterval(timer);
+        timer = null;
 
-   
+        setLoading(false);
+        setDone(false);
+        setProgress(0);
+
+        setDuplicateInfo(data);
+        setDuplicateOpen(true);
+        return;
+      }
+
       clearInterval(timer);
       timer = null;
 
-      setProgress(100);
-      setDone(true);
-
-      
-      await new Promise((r) => setTimeout(r, 650));
-
-      navigate("/slip/result", {
-        state: {
-          previewUrl,
-          ocr: {
-            ...(data?.extracted || {}),
-            memo: data?.memo ?? data?.extracted?.memo ?? null,
-            suggested_category:
-              data?.suggested_category ??
-              data?.extracted?.suggested_category ??
-              null,
-            category_required:
-              data?.category_required ??
-              data?.extracted?.category_required ??
-              false,
-            transaction_id: data?.transaction_id ?? null,
-          },
-          transaction_id: data?.transaction_id ?? null,
-        },
-      });
+      await goToResult(data);
     } catch (err) {
       setError(err?.message || "Upload failed");
     } finally {
@@ -294,6 +313,20 @@ const SlipUpload = () => {
       setDone(false);
       setProgress(0);
     }
+  };
+
+  const handleUpload = async () => {
+    await uploadSlip(false);
+  };
+
+  const handleConfirmDuplicate = async () => {
+    setDuplicateOpen(false);
+    await uploadSlip(true);
+  };
+
+  const handleCancelDuplicate = () => {
+    setDuplicateOpen(false);
+    setDuplicateInfo(null);
   };
 
   return (
@@ -305,12 +338,47 @@ const SlipUpload = () => {
         colors={colors}
       />
 
+      <Dialog
+        open={duplicateOpen}
+        onClose={handleCancelDuplicate}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Duplicate Slip Detected</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 1.5 }}>
+            พบว่าสลิปนี้อาจเคยถูกอัปโหลดแล้ว ต้องการอัปโหลดซ้ำและทำ OCR ต่อหรือไม่?
+          </DialogContentText>
+
+          {duplicateInfo?.existing_filename && (
+            <Typography variant="body2" sx={{ mb: 0.5 }}>
+              ไฟล์เดิม: <strong>{duplicateInfo.existing_filename}</strong>
+            </Typography>
+          )}
+
+          {duplicateInfo?.message && (
+            <Typography variant="body2" color="text.secondary">
+              {duplicateInfo.message}
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelDuplicate}>Cancel</Button>
+          <Button
+            onClick={handleConfirmDuplicate}
+            variant="contained"
+            color="warning"
+          >
+            Upload Anyway
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Header
         title="SLIP UPLOAD"
         subtitle="Upload transfer slip for OCR processing"
       />
 
-     
       <Box
         sx={{
           mt: 2,
@@ -329,7 +397,6 @@ const SlipUpload = () => {
             borderRadius: { xs: 3, sm: 4 },
           }}
         >
-          {/* Title */}
           <Box textAlign="center" mb={{ xs: 2, sm: 3 }}>
             <Typography
               variant="h4"
@@ -348,7 +415,6 @@ const SlipUpload = () => {
             sx={{ mb: { xs: 2, sm: 3 }, borderColor: colors.grey[700] }}
           />
 
-          {/* Upload Area */}
           <Box
             sx={{
               border: `2px dashed ${colors.greenAccent[400]}`,
@@ -443,7 +509,6 @@ const SlipUpload = () => {
             )}
           </Box>
 
-          {/* Upload Button */}
           <Box mt={{ xs: 3, sm: 4 }} sx={{ maxWidth: 420, mx: "auto" }}>
             <Button
               variant="contained"
@@ -469,7 +534,6 @@ const SlipUpload = () => {
             </Button>
           </Box>
 
-          {/* Result */}
           <Box mt={3}>
             {error && <Alert severity="error">{error}</Alert>}
 

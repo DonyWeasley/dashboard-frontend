@@ -62,7 +62,7 @@ export default function Register() {
       const password = form.password || "";
       const confirm = form.confirmPassword || "";
 
-      if (!name) throw new Error("Please enter your name");
+      if (!name) throw new Error("Please enter your username");
       if (!email) throw new Error("Please enter your email");
       if (!password) throw new Error("Please enter your password");
       if (password !== confirm) throw new Error("Passwords do not match");
@@ -264,11 +264,11 @@ export default function Register() {
                 <TextField
                   variant="outlined"
                   fullWidth
-                  label="Name"
+                  label="Username"
                   value={form.name}
-                  onChange={onChange("name")}
+                  onChange={onChange("username")}
                   required
-                  placeholder="Your name"
+                  placeholder="Your username"
                   sx={tfSx}
                   InputProps={{
                     sx: { borderRadius: 999 },
