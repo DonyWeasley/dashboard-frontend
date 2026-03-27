@@ -394,23 +394,7 @@ export default function Register() {
                   }}
                 />
 
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={form.remember}
-                      onChange={onToggleRemember}
-                      sx={{
-                        color: "rgba(180,200,235,0.55)",
-                        "&.Mui-checked": { color: teal },
-                      }}
-                    />
-                  }
-                  label={
-                    <Typography sx={{ color: "rgba(215,230,255,0.85)", fontWeight: 700 }}>
-                      Remember me
-                    </Typography>
-                  }
-                />
+             
 
                 <Button
                   type="submit"

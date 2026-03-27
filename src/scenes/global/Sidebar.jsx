@@ -8,7 +8,7 @@ import {
   Drawer,
   CircularProgress,
 } from "@mui/material";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { tokens } from "../../theme";
 
 import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
@@ -58,14 +58,31 @@ const SidebarContent = ({
 }) => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
+  const location = useLocation();
 
-  const [selected, setSelected] = useState("Dashboard");
+  const getSelectedFromPath = (pathname) => {
+    if (pathname === "/") return "Dashboard";
+    if (pathname.startsWith("/goal")) return "Goal";
+    if (pathname.startsWith("/slip-upload")) return "Attached slip";
+    if (pathname.startsWith("/finance/categories")) return "Album Categories";
+    if (pathname.startsWith("/transactions")) return "Transactions";
+    if (pathname.startsWith("/invoices")) return "Statistical information";
+    return "Dashboard";
+  };
+
+  const [selected, setSelected] = useState(
+    getSelectedFromPath(location.pathname),
+  );
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [userInfo, setUserInfo] = useState({
     displayName: "User",
     role: "User",
     profileImageUrl: "",
   });
+
+  useEffect(() => {
+    setSelected(getSelectedFromPath(location.pathname));
+  }, [location.pathname]);
 
   useEffect(() => {
     const fetchProfile = async () => {

@@ -29,15 +29,36 @@ const fmtMoney = (n) => {
   return x.toLocaleString(undefined, { maximumFractionDigits: 2 });
 };
 
+const normalizeCategory = (cat) => {
+  const value = String(cat || "")
+    .trim()
+    .toLowerCase();
+
+  if (["food&drink", "food", "drink", "food and drink"].includes(value)) {
+    return "Food&Drink";
+  }
+  if (["transport", "travel"].includes(value)) {
+    return "Transport";
+  }
+  if (["shopping", "shop"].includes(value)) {
+    return "Shopping";
+  }
+  if (["utilities", "utility", "bill", "bills"].includes(value)) {
+    return "Utilities";
+  }
+  return "Others";
+};
 
 const getCategoryColor = (colors, cat) => {
-  switch (cat) {
+  const normalized = normalizeCategory(cat);
+
+  switch (normalized) {
     case "Food&Drink":
       return colors.greenAccent[500];
     case "Transport":
       return colors.blueAccent[400];
     case "Shopping":
-      return colors.purpleAccent?.[400] || colors.blueAccent[300];
+      return "#f59e0b"; // 👈 เปลี่ยนตรงนี้
     case "Utilities":
       return colors.redAccent[300];
     default:
@@ -85,10 +106,6 @@ const Dashboard = () => {
     setCheckingGoal(true);
 
     try {
-
-
-      // แนะนำให้ backend ตรวจจากเดือนปัจจุบันให้เลย
-      // หรือถ้า endpoint ของคุณต้องใช้ query ก็เติม ?month=${month}
       const res = await fetch(`${API_BASE}/goals/current`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -97,9 +114,6 @@ const Dashboard = () => {
       if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
 
       const data = text ? JSON.parse(text) : {};
-
-      // คาดหวัง response เช่น:
-      // { has_goal: true/false, goal: 20000, month: "2026-03" }
 
       if (data?.has_goal === false) {
         setGoalPopupOpen(true);
@@ -162,7 +176,7 @@ const Dashboard = () => {
     const map = new Map();
 
     (chartItems || []).forEach((x) => {
-      const cat = x?.category || "Others";
+      const cat = normalizeCategory(x?.category);
       const total = Number(x?.total ?? 0);
       map.set(cat, (map.get(cat) || 0) + total);
     });
@@ -210,8 +224,6 @@ const Dashboard = () => {
     mt: 0.5,
     fontSize: { xs: 11, sm: 12, md: 13 },
   };
-
-
 
   return (
     <Box sx={{ m: { xs: 1, sm: 1.5, md: "20px" } }}>
@@ -267,7 +279,6 @@ const Dashboard = () => {
               {fmtMoney(avgDay.value)} ฿
             </Typography>
             <Typography sx={cardSubSx}>Today's Spending</Typography>
-          
           </Box>
         </Box>
 
@@ -278,7 +289,6 @@ const Dashboard = () => {
               {todayTx.value ?? 0}
             </Typography>
             <Typography sx={cardSubSx}>Transactions Today</Typography>
-            
           </Box>
         </Box>
 
@@ -294,10 +304,9 @@ const Dashboard = () => {
                 wordBreak: "break-word",
               }}
             >
-              {topCatToday.category || "Others"}
+              {normalizeCategory(topCatToday.category)}
             </Typography>
             <Typography sx={cardSubSx}>Most Spending Category Today</Typography>
-           
           </Box>
         </Box>
 
@@ -333,49 +342,55 @@ const Dashboard = () => {
 
           <Box sx={{ flex: 1, minHeight: 0, minWidth: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={chartData}
-                margin={{
-                  left: isXs ? 0 : 4,
-                  right: isXs ? 0 : 4,
-                  top: 8,
-                  bottom: isXs ? 28 : isMd ? 20 : 8,
-                }}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="category"
-                  interval={0}
-                  angle={isXs ? -25 : isMd ? -15 : 0}
-                  textAnchor={isXs || isMd ? "end" : "middle"}
-                  height={isXs ? 56 : isMd ? 42 : 30}
-                  tick={{ fontSize: isXs ? 9 : 11 }}
-                />
-                <YAxis
-                  width={isXs ? 30 : 42}
-                  tick={{ fontSize: isXs ? 9 : 11 }}
-                />
-                <Tooltip
-                  formatter={(value) => [`${fmtMoney(value)} ฿`, "Total"]}
-                  contentStyle={{
-                    backgroundColor: colors.primary[500],
-                    border: `1px solid rgba(255,255,255,0.18)`,
-                    borderRadius: 8,
-                  }}
-                  labelStyle={{ color: "#fff", fontWeight: 800 }}
-                  itemStyle={{ color: "#fff" }}
-                  cursor={{ fill: "rgba(255,255,255,0.05)" }}
-                />
-                <Bar dataKey="total" radius={[6, 6, 0, 0]} maxBarSize={isXs ? 28 : 42}>
-                  {chartData.map((entry) => (
-                    <Cell
-                      key={`cell-${entry.category}`}
-                      fill={getCategoryColor(colors, entry.category)}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+  <BarChart
+    data={chartData}
+    barCategoryGap="10%"
+    barGap={0}
+    margin={{
+      left: 0,
+      right: 0,
+      top: 8,
+      bottom: isXs ? 28 : isMd ? 20 : 8,
+    }}
+  >
+    <CartesianGrid strokeDasharray="3 3" />
+    <XAxis
+      dataKey="category"
+      interval={0}
+      angle={isXs ? -25 : isMd ? -15 : 0}
+      textAnchor={isXs || isMd ? "end" : "middle"}
+      height={isXs ? 56 : isMd ? 42 : 30}
+      tick={{ fontSize: isXs ? 9 : 11 }}
+    />
+    <YAxis
+      width={isXs ? 30 : 42}
+      tick={{ fontSize: isXs ? 9 : 11 }}
+    />
+    <Tooltip
+      formatter={(value) => [`${fmtMoney(value)} ฿`, "Total"]}
+      contentStyle={{
+        backgroundColor: colors.primary[500],
+        border: `1px solid rgba(255,255,255,0.18)`,
+        borderRadius: 8,
+      }}
+      labelStyle={{ color: "#fff", fontWeight: 800 }}
+      itemStyle={{ color: "#fff" }}
+      cursor={{ fill: "rgba(255,255,255,0.05)" }}
+    />
+    <Bar
+      dataKey="total"
+      radius={[8, 8, 0, 0]}
+      barSize={isXs ? 34 : 60}
+    >
+      {chartData.map((entry) => (
+        <Cell
+          key={`cell-${entry.category}`}
+          fill={getCategoryColor(colors, entry.category)}
+        />
+      ))}
+    </Bar>
+  </BarChart>
+</ResponsiveContainer>
           </Box>
         </Box>
 
@@ -441,7 +456,7 @@ const Dashboard = () => {
                         fontWeight="700"
                         sx={{ wordBreak: "break-word" }}
                       >
-                        {tx.category || "Others"}
+                        {normalizeCategory(tx.category)}
                       </Typography>
                       <Typography
                         color={colors.grey[100]}

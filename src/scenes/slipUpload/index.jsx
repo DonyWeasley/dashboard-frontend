@@ -16,7 +16,7 @@ import {
 import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
 import CloudUploadOutlinedIcon from "@mui/icons-material/CloudUploadOutlined";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
-
+import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import { tokens } from "../../theme";
 import Header from "../../components/Header";
 import { useEffect, useMemo, useState } from "react";
@@ -339,43 +339,133 @@ const SlipUpload = () => {
       />
 
       <Dialog
-        open={duplicateOpen}
-        onClose={handleCancelDuplicate}
-        fullWidth
-        maxWidth="sm"
-      >
-        <DialogTitle>Duplicate Slip Detected</DialogTitle>
-        <DialogContent>
-          <DialogContentText sx={{ mb: 1.5 }}>
-            พบว่าสลิปนี้อาจเคยถูกอัปโหลดแล้ว ต้องการอัปโหลดซ้ำและทำ OCR ต่อหรือไม่?
-          </DialogContentText>
+  open={duplicateOpen}
+  onClose={handleCancelDuplicate}
+  fullWidth
+  maxWidth="sm"
+  PaperProps={{
+    sx: {
+      backgroundColor: colors.primary[400],
+      color: colors.grey[100],
+      borderRadius: 4,
+      border: `1px solid ${colors.primary[600]}`,
+      boxShadow: "0 20px 60px rgba(0,0,0,0.45)",
+      overflow: "hidden",
+    },
+  }}
+>
+  <DialogTitle
+    sx={{
+      display: "flex",
+      alignItems: "center",
+      gap: 1,
+      pb: 1.5,
+      fontWeight: 800,
+      fontSize: "1.15rem",
+      color: colors.grey[100],
+      background: `linear-gradient(180deg, ${colors.primary[400]} 0%, ${colors.primary[500]} 100%)`,
+      borderBottom: `1px solid ${colors.primary[600]}`,
+    }}
+  >
+    <WarningAmberRoundedIcon sx={{ color: colors.greenAccent[400] }} />
+    Duplicate Slip Detected
+  </DialogTitle>
 
-          {duplicateInfo?.existing_filename && (
-            <Typography variant="body2" sx={{ mb: 0.5 }}>
-              ไฟล์เดิม: <strong>{duplicateInfo.existing_filename}</strong>
-            </Typography>
-          )}
+  <DialogContent
+    sx={{
+      pt: "20px !important",
+      backgroundColor: colors.primary[400],
+    }}
+  >
+    <DialogContentText
+      sx={{
+        mb: 2,
+        color: colors.grey[300],
+        lineHeight: 1.8,
+      }}
+    >
+      พบว่าสลิปนี้อาจเคยถูกอัปโหลดแล้ว ต้องการอัปโหลดซ้ำและทำ OCR ต่อหรือไม่?
+    </DialogContentText>
 
-          {duplicateInfo?.message && (
-            <Typography variant="body2" color="text.secondary">
-              {duplicateInfo.message}
-            </Typography>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCancelDuplicate}>Cancel</Button>
-          <Button
-            onClick={handleConfirmDuplicate}
-            variant="contained"
-            color="warning"
-          >
-            Upload Anyway
-          </Button>
-        </DialogActions>
-      </Dialog>
+    <Box
+      sx={{
+        p: 2,
+        borderRadius: 3,
+        backgroundColor: colors.primary[500],
+        border: `1px solid ${colors.primary[600]}`,
+      }}
+    >
+      {duplicateInfo?.existing_filename && (
+        <Typography
+          variant="body2"
+          sx={{ color: colors.grey[100], mb: 1, fontWeight: 600 }}
+        >
+          ไฟล์เดิม:{" "}
+          <Box component="span" sx={{ color: colors.greenAccent[400] }}>
+            {duplicateInfo.existing_filename}
+          </Box>
+        </Typography>
+      )}
+
+      {duplicateInfo?.message && (
+        <Typography
+          variant="body2"
+          sx={{ color: colors.grey[300] }}
+        >
+          {duplicateInfo.message}
+        </Typography>
+      )}
+    </Box>
+  </DialogContent>
+
+  <DialogActions
+    sx={{
+      px: 3,
+      pb: 2.5,
+      pt: 1.5,
+      backgroundColor: colors.primary[400],
+    }}
+  >
+    <Button
+      onClick={handleCancelDuplicate}
+      variant="outlined"
+      sx={{
+        color: colors.grey[200],
+        borderColor: colors.grey[600],
+        px: 2.5,
+        borderRadius: 2,
+        textTransform: "none",
+        "&:hover": {
+          borderColor: colors.grey[400],
+          backgroundColor: colors.primary[500],
+        },
+      }}
+    >
+      Cancel
+    </Button>
+
+    <Button
+      onClick={handleConfirmDuplicate}
+      variant="contained"
+      sx={{
+        px: 2.5,
+        borderRadius: 2,
+        textTransform: "none",
+        fontWeight: 700,
+        backgroundColor: colors.greenAccent[600],
+        color: "#fff",
+        "&:hover": {
+          backgroundColor: colors.greenAccent[700],
+        },
+      }}
+    >
+      Upload Anyway
+    </Button>
+  </DialogActions>
+</Dialog>
 
       <Header
-        title="SLIP UPLOAD"
+        title="UPLOAD SLIP"
         subtitle="Upload transfer slip for OCR processing"
       />
 
@@ -404,7 +494,7 @@ const SlipUpload = () => {
               color={colors.grey[100]}
               sx={{ fontSize: { xs: 22, sm: 28 } }}
             >
-              Slip Upload
+              Upload Slip 
             </Typography>
             <Typography variant="body2" color={colors.grey[300]} mt={1}>
               Upload your transfer slip image for automatic OCR extraction

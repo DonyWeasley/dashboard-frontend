@@ -30,7 +30,7 @@ import AccessTimeRoundedIcon from "@mui/icons-material/AccessTimeRounded";
 const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
 
 const labelMap = {
-  "food-drink": "Food&Drink",
+  "food&drink": "Food&Drink",
   transport: "Transport",
   shopping: "Shopping",
   utilities: "Utilities",

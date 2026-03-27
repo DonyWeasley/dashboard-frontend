@@ -27,6 +27,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded";
+import DeleteSweepRoundedIcon from "@mui/icons-material/DeleteSweepRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined";
 import AccessTimeOutlinedIcon from "@mui/icons-material/AccessTimeOutlined";
@@ -70,6 +71,19 @@ const todayISO = () => {
 
 const formatAmount = (value) => Number(value ?? 0).toLocaleString("th-TH");
 
+const formatDateDisplay = (dateStr) => {
+  if (!dateStr || dateStr === "-") return "-";
+
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return dateStr;
+
+  return d.toLocaleDateString("th-TH-u-ca-gregory", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+};
+
 const Transactions = () => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
@@ -85,12 +99,13 @@ const Transactions = () => {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filterModel, setFilterModel] = useState({
-  items: [],
-});
+    items: [],
+  });
   const [err, setErr] = useState("");
 
   const [editMode, setEditMode] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [deletingAll, setDeletingAll] = useState(false);
 
   const token = useMemo(
     () =>
@@ -138,6 +153,56 @@ const Transactions = () => {
     },
     [token],
   );
+
+  const handleDeleteAll = useCallback(async () => {
+    if (!rows.length) {
+      alert("ไม่มีรายการให้ลบ");
+      return;
+    }
+
+    const ok = window.confirm(
+      `ต้องการลบทั้งหมด ${rows.length} รายการใช่ไหม?\n(รูปสลิปจะถูกลบออกจาก uploads ด้วย)`,
+    );
+    if (!ok) return;
+
+    try {
+      setDeletingAll(true);
+      setErr("");
+
+      const results = await Promise.allSettled(
+        rows.map((row) =>
+          fetch(`${API_BASE}/transactions/${row.id}`, {
+            method: "DELETE",
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          }),
+        ),
+      );
+
+      const failedIds = [];
+
+      results.forEach((result, index) => {
+        if (result.status === "rejected") {
+          failedIds.push(rows[index].id);
+          return;
+        }
+
+        if (!result.value.ok) {
+          failedIds.push(rows[index].id);
+        }
+      });
+
+      if (failedIds.length > 0) {
+        setRows((prev) => prev.filter((x) => failedIds.includes(x.id)));
+        throw new Error(`ลบสำเร็จบางส่วน เหลือ ${failedIds.length} รายการ`);
+      }
+
+      setRows([]);
+    } catch (e) {
+      setErr(e?.message || "Delete all failed");
+    } finally {
+      setDeletingAll(false);
+    }
+  }, [rows, token]);
 
   const handleDownload = useCallback(() => {
     if (!rows.length) {
@@ -214,7 +279,7 @@ const Transactions = () => {
               sx={{ fontSize: 16, color: colors.grey[400] }}
             />
             <Typography color={colors.grey[100]} fontWeight={600}>
-              {params.value || "-"}
+              {formatDateDisplay(params.value)}
             </Typography>
           </Box>
         ),
@@ -259,55 +324,55 @@ const Transactions = () => {
         ),
       },
       {
-  field: "bank",
-  headerName: "Bank",
-  type: "singleSelect",
-  valueOptions: BANK_OPTIONS,
-  filterOperators: getGridSingleSelectOperators().filter(
-    (operator) => operator.value === "is"
-  ),
-  flex: 1.4,
-  minWidth: 210,
-  renderCell: (params) => (
-    <Box display="flex" alignItems="center" gap={0.75} sx={{ minWidth: 0 }}>
-      <AccountBalanceOutlinedIcon
-        sx={{ fontSize: 16, color: colors.blueAccent[200], flexShrink: 0 }}
-      />
-      <Typography color={colors.grey[100]} fontWeight={600} noWrap>
-        {params.value || "-"}
-      </Typography>
-    </Box>
-  ),
-},
+        field: "bank",
+        headerName: "Bank",
+        type: "singleSelect",
+        valueOptions: BANK_OPTIONS,
+        filterOperators: getGridSingleSelectOperators().filter(
+          (operator) => operator.value === "is",
+        ),
+        flex: 1.4,
+        minWidth: 210,
+        renderCell: (params) => (
+          <Box display="flex" alignItems="center" gap={0.75} sx={{ minWidth: 0 }}>
+            <AccountBalanceOutlinedIcon
+              sx={{ fontSize: 16, color: colors.blueAccent[200], flexShrink: 0 }}
+            />
+            <Typography color={colors.grey[100]} fontWeight={600} noWrap>
+              {params.value || "-"}
+            </Typography>
+          </Box>
+        ),
+      },
       {
-  field: "category",
-  headerName: "Category",
-  type: "singleSelect",
-  valueOptions: [
-    "Food&Drink",
-    "Transport",
-    "Shopping",
-    "Utilities",
-    "Others",
-  ],
-  filterOperators: getGridSingleSelectOperators().filter(
-    (operator) => operator.value === "is"
-  ),
-  flex: 1,
-  minWidth: 160,
-  renderCell: (params) => (
-    <Chip
-      label={params.value || "Others"}
-      size="small"
-      sx={{
-        fontWeight: 700,
-        backgroundColor: colors.primary[500],
-        color: colors.grey[100],
-        border: `1px solid ${colors.primary[600] || colors.grey[700]}`,
-      }}
-    />
-  ),
-},
+        field: "category",
+        headerName: "Category",
+        type: "singleSelect",
+        valueOptions: [
+          "Food&Drink",
+          "Transport",
+          "Shopping",
+          "Utilities",
+          "Others",
+        ],
+        filterOperators: getGridSingleSelectOperators().filter(
+          (operator) => operator.value === "is",
+        ),
+        flex: 1,
+        minWidth: 160,
+        renderCell: (params) => (
+          <Chip
+            label={params.value || "Others"}
+            size="small"
+            sx={{
+              fontWeight: 700,
+              backgroundColor: colors.primary[500],
+              color: colors.grey[100],
+              border: `1px solid ${colors.primary[600] || colors.grey[700]}`,
+            }}
+          />
+        ),
+      },
       {
         field: "qr",
         headerName: "Slip",
@@ -354,13 +419,12 @@ const Transactions = () => {
 
           return (
             <Box display="flex" alignItems="center" gap={0.5}>
-              
               <Tooltip title="Delete">
                 <span>
                   <IconButton
                     size="small"
                     onClick={() => handleDeleteRow(row)}
-                    disabled={isDeleting}
+                    disabled={isDeleting || deletingAll}
                     sx={{
                       color: colors.redAccent[300],
                       "&:hover": { backgroundColor: "rgba(255,255,255,0.06)" },
@@ -379,14 +443,11 @@ const Transactions = () => {
         },
       },
     ];
-  }, [colors, editMode, deletingId, handleDeleteRow]);
+  }, [colors, editMode, deletingId, deletingAll, handleDeleteRow]);
 
   const columnVisibilityModel = useMemo(() => {
-    if (!isMobile) return {};
-    return {
-      category: false,
-    };
-  }, [isMobile]);
+    return {};
+  }, []);
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
@@ -676,11 +737,13 @@ const Transactions = () => {
               display: "flex",
               justifyContent: { xs: "flex-start", md: "flex-end" },
               gap: 1,
+              flexWrap: "wrap",
             }}
           >
             <Tooltip title={editMode ? "Exit edit mode" : "Edit mode"}>
               <IconButton
                 onClick={() => setEditMode((v) => !v)}
+                disabled={deletingAll}
                 sx={{
                   backgroundColor: editMode
                     ? colors.redAccent[400]
@@ -694,15 +757,49 @@ const Transactions = () => {
                       ? colors.redAccent[500]
                       : colors.blueAccent[700],
                   },
+                  "&.Mui-disabled": {
+                    backgroundColor: colors.grey[700],
+                    color: colors.grey[400],
+                  },
                 }}
               >
                 {editMode ? <CloseRoundedIcon /> : <EditRoundedIcon />}
               </IconButton>
             </Tooltip>
 
+            <Tooltip title="Delete all displayed rows">
+              <span>
+                <IconButton
+                  onClick={handleDeleteAll}
+                  disabled={!rows.length || deletingAll || loading}
+                  sx={{
+                    backgroundColor: colors.redAccent[500],
+                    color: colors.grey[100],
+                    borderRadius: "10px",
+                    width: 42,
+                    height: 42,
+                    "&:hover": {
+                      backgroundColor: colors.redAccent[600],
+                    },
+                    "&.Mui-disabled": {
+                      backgroundColor: colors.grey[700],
+                      color: colors.grey[400],
+                    },
+                  }}
+                >
+                  {deletingAll ? (
+                    <CircularProgress size={18} color="inherit" />
+                  ) : (
+                    <DeleteSweepRoundedIcon />
+                  )}
+                </IconButton>
+              </span>
+            </Tooltip>
+
             <Tooltip title="Download CSV">
               <IconButton
                 onClick={handleDownload}
+                disabled={deletingAll}
                 sx={{
                   backgroundColor: colors.greenAccent[600],
                   color: colors.grey[100],
@@ -710,6 +807,10 @@ const Transactions = () => {
                   width: 42,
                   height: 42,
                   "&:hover": { backgroundColor: colors.greenAccent[700] },
+                  "&.Mui-disabled": {
+                    backgroundColor: colors.grey[700],
+                    color: colors.grey[400],
+                  },
                 }}
               >
                 <DownloadOutlinedIcon />
@@ -727,13 +828,27 @@ const Transactions = () => {
         <Box
           sx={{
             height: { xs: "72vh", md: "70vh" },
+            width: "100%",
             overflowX: "auto",
+            overflowY: "hidden",
+            WebkitOverflowScrolling: "touch",
             borderRadius: "16px",
             border: `1px solid ${colors.primary[500]}`,
-            overflow: "hidden",
+
+            "&::-webkit-scrollbar": {
+              height: 8,
+            },
+            "&::-webkit-scrollbar-track": {
+              backgroundColor: colors.primary[500],
+            },
+            "&::-webkit-scrollbar-thumb": {
+              backgroundColor: colors.blueAccent[400],
+              borderRadius: 999,
+            },
+
             "& .MuiDataGrid-root": {
               border: "none",
-              minWidth: isMobile ? 860 : "100%",
+              minWidth: isMobile ? 980 : "100%",
               backgroundColor: colors.primary[400],
             },
             "& .MuiDataGrid-cell": {
@@ -767,35 +882,36 @@ const Transactions = () => {
             },
           }}
         >
-         <DataGrid
-  rows={rows}
-  columns={columns}
-  slots={{ toolbar: GridToolbar }}
-  loading={loading}
-  disableRowSelectionOnClick
-  columnVisibilityModel={columnVisibilityModel}
- filterModel={filterModel}
-onFilterModelChange={(model) => {
-  const fixedItems = (model.items || []).map((item) => {
-    if (
-      (item.field === "category" || item.field === "bank") &&
-      item.operator === "contains"
-    ) {
-      return { ...item, operator: "is" };
-    }
-    return item;
-  });
+          <DataGrid
+            rows={rows}
+            columns={columns}
+            slots={{ toolbar: GridToolbar }}
+            loading={loading || deletingAll}
+            disableRowSelectionOnClick
+            columnVisibilityModel={columnVisibilityModel}
+            filterModel={filterModel}
+            onFilterModelChange={(model) => {
+              const fixedItems = (model.items || []).map((item) => {
+                if (
+                  (item.field === "category" || item.field === "bank") &&
+                  item.operator === "contains"
+                ) {
+                  return { ...item, operator: "is" };
+                }
+                return item;
+              });
 
-  setFilterModel({
-    ...model,
-    items: fixedItems,
-  });
-}}
-  initialState={{
-    pagination: { paginationModel: { pageSize: 25, page: 0 } },
-  }}
-  pageSizeOptions={[10, 25, 50, 100]}
-/>
+              setFilterModel({
+                ...model,
+                items: fixedItems,
+              });
+            }}
+            initialState={{
+              pagination: { paginationModel: { pageSize: 25, page: 0 } },
+            }}
+            pageSizeOptions={[10, 25, 50, 100]}
+            sx={{ minWidth: 980 }}
+          />
         </Box>
       </Paper>
     </Box>

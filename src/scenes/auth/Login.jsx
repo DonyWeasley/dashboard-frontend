@@ -359,35 +359,8 @@ export default function Login({ setIsLogin }) {
                     flexWrap: "wrap",
                   }}
                 >
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={form.remember}
-                        onChange={onToggleRemember}
-                        sx={{
-                          color: "rgba(180,200,235,0.55)",
-                          "&.Mui-checked": { color: teal },
-                        }}
-                      />
-                    }
-                    label={
-                      <Typography sx={{ color: "rgba(215,230,255,0.85)", fontWeight: 700 }}>
-                        Remember me
-                      </Typography>
-                    }
-                  />
-
-                  <Typography
-                    sx={{
-                      color: teal,
-                      fontWeight: 900,
-                      cursor: "pointer",
-                      "&:hover": { textDecoration: "underline", color: "#7CF7E7" },
-                    }}
-                    onClick={() => setErr("Forgot password is not implemented yet")}
-                  >
-                    Forgot password?
-                  </Typography>
+                  
+                  
                 </Box>
 
                 <Button

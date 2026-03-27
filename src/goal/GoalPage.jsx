@@ -45,6 +45,12 @@ function monthKeyNow() {
 function formatMoney(value) {
   return Number(value || 0).toLocaleString("th-TH");
 }
+function formatMonthDisplay(monthStr) {
+  if (!monthStr) return "-";
+  const [year, month] = String(monthStr).split("-");
+  if (!year || !month) return monthStr;
+  return `${month}/${year}`;
+}
 
 export default function GoalPage() {
   const theme = useTheme();
@@ -410,9 +416,9 @@ export default function GoalPage() {
                       transition: "0.2s ease",
                     }}
                   >
-                    <TableCell sx={{ color: colors.grey[100], fontWeight: 700 }}>
-                      {r.month}
-                    </TableCell>
+                  <TableCell sx={{ color: colors.grey[100], fontWeight: 700 }}>
+  {formatMonthDisplay(r.month)}
+</TableCell>
 
                     <TableCell
                       align="right"

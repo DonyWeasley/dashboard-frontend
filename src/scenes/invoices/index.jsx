@@ -58,13 +58,12 @@ const monthShort = (m) => months[m - 1]?.label?.slice(0, 3) || String(m);
 
 /** สีประจำธนาคาร */
 const BANK_COLORS = {
-  BBL: "#42A5F5",
+  BBL: "#002677",
   TTB: "#FFB74D",
   GSB: "#F06292",
   KBank: "#66BB6A",
   SCB: "#AB47BC",
-  Krungsri: "#FFD54F",
-  KTB: "#29B6F6",
+  KTB: "#54c3f7",
   TrueMoney: "#FF8A65",
 };
 
@@ -118,7 +117,7 @@ const StatisticalInformations = () => {
       line: colors.greenAccent[400],
       lineDark: colors.greenAccent[500],
       pointBorder: colors.greenAccent[700],
-      avg: colors.greenAccent[200],
+      goal: colors.greenAccent[200],
       areaOpacity: 0.16,
       bankFallback: colors.greenAccent[400],
     }),
@@ -229,43 +228,31 @@ const StatisticalInformations = () => {
   const xAxisLabel = useMemo(() => {
     if (filterType === "all") return "Year";
     if (filterType === "year") return "Month";
-    return "Day";
+    return "5-Day Range";
   }, [filterType]);
 
   const lineData = useMemo(() => {
-    const series = (expensesOverTime || [])
+    const expenseSeries = (expensesOverTime || [])
       .map((p) => {
-        const xNum = Number(p?.x);
+        const rawX = p?.x;
         const yNum = Number(p?.total);
-
-        if (!Number.isFinite(xNum) || !Number.isFinite(yNum)) return null;
+        if (!Number.isFinite(yNum)) return null;
 
         let xLabel = "";
         if (filterType === "all") {
-          xLabel = String(xNum);
+          xLabel = String(rawX);
         } else if (filterType === "year") {
-          xLabel = monthShort(xNum);
+          xLabel = monthShort(Number(rawX));
         } else {
-          xLabel = String(xNum).padStart(2, "0");
+          xLabel = String(rawX);
         }
 
         return { x: xLabel, y: yNum };
       })
       .filter(Boolean);
 
-    return [{ id: "Expenses", data: series }];
+    return [{ id: "Expenses", data: expenseSeries }];
   }, [expensesOverTime, filterType]);
-
-  const avgValue = useMemo(() => {
-    if (Number.isFinite(Number(averageLine))) return Number(averageLine);
-
-    const ys = (lineData?.[0]?.data || [])
-      .map((d) => Number(d?.y))
-      .filter(Number.isFinite);
-
-    if (!ys.length) return 0;
-    return ys.reduce((a, b) => a + b, 0) / ys.length;
-  }, [averageLine, lineData]);
 
   const stackedBar = useMemo(() => {
     const banks = Array.isArray(categoryByBank?.banks)
@@ -337,7 +324,7 @@ const StatisticalInformations = () => {
         } else if (filterType === "year") {
           xLabel = monthShort(Number(d));
         } else {
-          xLabel = String(d).padStart(2, "0");
+          xLabel = String(d);
         }
 
         return {
@@ -400,10 +387,12 @@ const StatisticalInformations = () => {
       .filter(Number.isFinite);
 
     const dataMax = ys.length ? Math.max(...ys) : 0;
-    const markerMax = Number.isFinite(Number(avgValue)) ? Number(avgValue) : 0;
+    const goalMax = Number.isFinite(Number(averageLine))
+      ? Number(averageLine)
+      : 0;
 
-    return Math.max(dataMax, markerMax, 1);
-  }, [lineData, avgValue]);
+    return Math.max(dataMax, goalMax, 1);
+  }, [lineData, averageLine]);
 
   return (
     <Box sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 3 } }}>
@@ -576,7 +565,49 @@ const StatisticalInformations = () => {
             ) : (
               <ResponsiveLine
                 data={lineData}
-                theme={nivoTheme}
+                theme={{
+                  ...nivoTheme,
+                  axis: {
+                    ...nivoTheme?.axis,
+                    ticks: {
+                      text: {
+                        fill: "#e5e7eb",
+                        fontSize: 12,
+                        fontWeight: 600,
+                      },
+                    },
+                    legend: {
+                      text: {
+                        fill: "#f9fafb",
+                        fontSize: 13,
+                        fontWeight: 700,
+                      },
+                    },
+                  },
+                  grid: {
+                    line: {
+                      stroke: "rgba(255,255,255,0.08)",
+                      strokeWidth: 1,
+                    },
+                  },
+                  crosshair: {
+                    line: {
+                      stroke: "#86efac",
+                      strokeWidth: 1,
+                      strokeOpacity: 0.5,
+                    },
+                  },
+                  tooltip: {
+                    container: {
+                      background: "#111827",
+                      color: "#ffffff",
+                      fontSize: 12,
+                      borderRadius: 8,
+                      boxShadow: "0 4px 14px rgba(0,0,0,0.25)",
+                      padding: "8px 10px",
+                    },
+                  },
+                }}
                 margin={{ top: 30, right: 30, bottom: 60, left: 70 }}
                 xScale={{ type: "point" }}
                 yScale={{ type: "linear", min: 0, max: lineYMax }}
@@ -601,8 +632,8 @@ const StatisticalInformations = () => {
                 }}
                 colors={[ACCENT.line]}
                 lineWidth={3}
-                pointSize={7}
-                pointColor={ACCENT.line}
+                pointSize={8}
+                pointColor={ACCENT.point}
                 pointBorderWidth={2}
                 pointBorderColor={ACCENT.pointBorder}
                 enableArea
@@ -611,20 +642,22 @@ const StatisticalInformations = () => {
                 enableGridY
                 useMesh
                 markers={
-                  filterType === "month"
+                  filterType === "month" &&
+                  Number.isFinite(Number(averageLine)) &&
+                  Number(averageLine) > 0
                     ? [
                         {
                           axis: "y",
-                          value: avgValue,
+                          value: Number(averageLine),
                           lineStyle: {
-                            stroke: ACCENT.avg,
+                            stroke: ACCENT.goal,
                             strokeWidth: 3,
                             strokeDasharray: "8 6",
                           },
-                          legend: `Goal ${fmtMoney(avgValue)} ฿`,
+                          legend: `Goal ${fmtMoney(averageLine)} ฿`,
                           legendPosition: "top-left",
                           textStyle: {
-                            fill: ACCENT.avg,
+                            fill: ACCENT.goal,
                             fontSize: 12,
                             fontWeight: 800,
                           },
@@ -637,8 +670,8 @@ const StatisticalInformations = () => {
                     <div style={{ fontWeight: 900, marginBottom: 4 }}>
                       {xAxisLabel}: {point.data.xFormatted}
                     </div>
-                    <div style={{ color: ACCENT.line }}>
-                      Amount: {fmtMoney(point.data.yFormatted)} ฿
+                    <div style={{ color: ACCENT.point }}>
+                      Expenses: {fmtMoney(point.data.yFormatted)} ฿
                     </div>
                   </div>
                 )}
@@ -662,8 +695,17 @@ const StatisticalInformations = () => {
                 indexBy="category"
                 groupMode="stacked"
                 layout="vertical"
-                theme={nivoTheme}
-                margin={{ top: 48, right: 20, bottom: 55, left: 60 }}
+                theme={{
+                  ...nivoTheme,
+                  legends: {
+                    text: {
+                      fill: "#e5e7eb",
+                      fontSize: 12,
+                      fontWeight: 700,
+                    },
+                  },
+                }}
+                margin={{ top: 78, right: 20, bottom: 55, left: 60 }}
                 padding={0.35}
                 colors={({ id }) => BANK_COLORS[id] || ACCENT.bankFallback}
                 valueScale={{ type: "linear" }}
@@ -693,12 +735,24 @@ const StatisticalInformations = () => {
                   {
                     anchor: "top",
                     direction: "row",
-                    translateY: -42,
-                    itemsSpacing: 14,
-                    itemWidth: 85,
+                    justify: false,
+                    translateX: 0,
+                    translateY: -56,
+                    itemsSpacing: 10,
+                    itemWidth: 72,
                     itemHeight: 18,
+                    itemDirection: "left-to-right",
+                    itemOpacity: 1,
                     symbolSize: 12,
                     symbolShape: "square",
+                    effects: [
+                      {
+                        on: "hover",
+                        style: {
+                          itemOpacity: 0.85,
+                        },
+                      },
+                    ],
                   },
                 ]}
                 tooltip={({ id, value, indexValue }) => (
@@ -766,7 +820,39 @@ const StatisticalInformations = () => {
             ) : (
               <ResponsiveHeatMap
                 data={heatmapData}
-                theme={nivoTheme}
+                theme={{
+                  ...nivoTheme,
+                  labels: {
+                    text: {
+                      fill: "#111827", // ตัวเลขใน cell เข้มขึ้น
+                      fontSize: 12,
+                      fontWeight: 700,
+                    },
+                  },
+                  axis: {
+                    ...nivoTheme?.axis,
+                    ticks: {
+                      text: {
+                        fill: "#e5e7eb", // สีแกน X/Y
+                        fontSize: 12,
+                        fontWeight: 600,
+                      },
+                    },
+                    legend: {
+                      text: {
+                        fill: "#f9fafb", // สีชื่อแกน
+                        fontSize: 13,
+                        fontWeight: 700,
+                      },
+                    },
+                  },
+                  legends: {
+                    text: {
+                      fill: "#e5e7eb", // สี legend ด้านขวา
+                      fontSize: 11,
+                    },
+                  },
+                }}
                 margin={{ top: 10, right: 90, bottom: 60, left: 95 }}
                 colors={{
                   type: "sequential",
@@ -774,16 +860,13 @@ const StatisticalInformations = () => {
                   minValue: 0,
                   maxValue: heatMax,
                 }}
-                emptyColor={colors.primary[500]}
+                emptyColor="#334155" // ช่องไม่มีค่าให้เข้มขึ้น จะได้ไม่กลืน
                 forceSquare={false}
                 cellOpacity={1}
                 cellBorderWidth={1}
-                cellBorderColor={{
-                  from: "color",
-                  modifiers: [["darker", 0.25]],
-                }}
+                cellBorderColor="#94a3b8"
                 enableLabels={true}
-                labelTextColor={colors.grey[100]}
+                labelTextColor="#111827" // สำคัญ: อย่าใช้ grey[100] ตรงนี้
                 legends={[
                   {
                     anchor: "right",
@@ -816,8 +899,16 @@ const StatisticalInformations = () => {
                   legendPosition: "middle",
                   legendOffset: -70,
                 }}
+                valueFormat={(v) => (v == null ? "" : Number(v).toFixed(0))}
                 tooltip={({ cell }) => (
-                  <div>
+                  <div
+                    style={{
+                      background: "#111827",
+                      color: "#fff",
+                      padding: "8px 10px",
+                      borderRadius: 8,
+                    }}
+                  >
                     <div style={{ fontWeight: 900, marginBottom: 4 }}>
                       {cell.serieId} • {cell.xKey}
                     </div>

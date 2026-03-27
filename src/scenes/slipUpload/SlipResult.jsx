@@ -376,8 +376,8 @@ export default function SlipResult() {
             display: "grid",
             gridTemplateColumns: {
               xs: "1fr",
-              md: "minmax(280px, 360px) 1fr",
-              lg: "minmax(280px, 360px) 1fr minmax(260px, 320px)",
+              md: "minmax(240px, 32%) 1fr",
+              lg: "minmax(260px, 30%) 1fr minmax(260px, 320px)",
             },
             gap: { xs: 2, md: 3 },
             alignItems: "start",
@@ -391,6 +391,7 @@ export default function SlipResult() {
               p: 2,
               backgroundColor: colors.primary[500],
               border: `1px solid ${colors.grey[700]}`,
+              width: "100%",
             }}
           >
             <Typography fontWeight={800} mb={1} color={colors.grey[100]}>
@@ -403,6 +404,12 @@ export default function SlipResult() {
                 overflow: "hidden",
                 border: `1px solid ${colors.grey[700]}`,
                 backgroundColor: colors.primary[600],
+                width: "100%",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                p: { xs: 1, sm: 1.5, md: 2 },
+                minHeight: { xs: 220, sm: 280, md: 320 },
               }}
             >
               <Box
@@ -410,10 +417,18 @@ export default function SlipResult() {
                 src={previewUrl}
                 alt="slip"
                 sx={{
-                  width: "100%",
                   display: "block",
+                  width: "100%",
+                  height: "auto",
+                  maxWidth: "100%",
+                  maxHeight: {
+                    xs: "50vh",
+                    sm: "55vh",
+                    md: "60vh",
+                    lg: "70vh",
+                  },
                   objectFit: "contain",
-                  maxHeight: { xs: 360, sm: 420, md: 520 },
+                  borderRadius: 2,
                 }}
               />
             </Box>
@@ -443,7 +458,7 @@ export default function SlipResult() {
             </Typography>
 
             <Typography sx={{ color: colors.grey[300], mb: 2, fontSize: 13 }}>
-              ระบบเดาหมวดหมู่จากคำที่เจอบนสลิปได้ (แก้ไขได้)
+              ระบบเลือกหมวดหมู่จากคำที่เจอบนสลิปได้ (แก้ไขได้)
             </Typography>
 
             <Box
@@ -474,7 +489,7 @@ export default function SlipResult() {
               <Typography
                 sx={{ color: colors.grey[300], fontSize: 12, mt: 0.5 }}
               >
-                * ถ้าเดาผิด ให้เลือกหมวดหมู่ใหม่ (ด้านล่าง/ด้านขวา) ได้เลย
+                * ถ้าระบบเลือกหมวดหมู่ผิด ให้เลือกหมวดหมู่ใหม่ได้เลย
               </Typography>
             </Box>
 
@@ -487,7 +502,6 @@ export default function SlipResult() {
                 }}
                 inputValue={form.bank || ""}
                 onInputChange={(_, newInputValue) => {
-                  // ✅ ให้พิมพ์ได้ด้วย (กรณี bank ไม่อยู่ใน list)
                   setForm((p) => ({ ...p, bank: newInputValue || "" }));
                 }}
                 freeSolo
@@ -512,6 +526,7 @@ export default function SlipResult() {
                 >
                   <DatePicker
                     label="Date"
+                    format="DD/MM/YYYY"
                     value={dateVal}
                     onChange={(v) => {
                       setDateVal(v);
@@ -654,7 +669,7 @@ export default function SlipResult() {
               <Typography
                 sx={{ color: colors.grey[300], mt: 0.5, fontSize: 13 }}
               >
-                ถ้า OCR เดาผิด ให้เลือกใหม่ได้เลย
+                ถ้า OCR เลือกผิด ให้เลือกใหม่ได้เลย
               </Typography>
             </Box>
 
@@ -757,7 +772,7 @@ export default function SlipResult() {
               <Typography
                 sx={{ color: colors.grey[300], mt: 0.5, fontSize: 13 }}
               >
-                ถ้า OCR เดาผิด ให้เลือกใหม่ได้เลย
+                ถ้าระบบเลือกหมวดหมู่ผิด ให้เลือกใหม่ได้เลย
               </Typography>
             </Box>
 
@@ -813,7 +828,7 @@ export default function SlipResult() {
 
             <Typography sx={{ color: colors.grey[300], fontSize: 13 }}>
               Selected:{" "}
-              <b style={{ color: colors.grey[100] }}>
+              <b style={{ color: colors.greenAccent[300] }}>
                 <img
                   src={selectedCategoryObj?.icon}
                   alt={selectedCategoryObj?.label}

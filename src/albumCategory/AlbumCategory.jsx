@@ -26,7 +26,7 @@ import { useNavigate } from "react-router-dom";
 const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
 
 const FALLBACK_CATEGORIES = [
-  { key: "food-drink", label: "Food&Drink" },
+  { key: "food&drink", label: "Food&Drink" },
   { key: "transport", label: "Transport" },
   { key: "shopping", label: "Shopping" },
   { key: "utilities", label: "Utilities" },
