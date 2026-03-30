@@ -1,19 +1,19 @@
-# 💳 Bank Payment OCR System
+#  Bank Payment OCR System
 
 ระบบเว็บแอปพลิเคชันสำหรับตรวจจับและดึงข้อมูลจาก **สลิปโอนเงิน (Bank Payment Slip)** โดยใช้เทคโนโลยี OCR (Optical Character Recognition) เพื่อช่วยให้ผู้ใช้งานสามารถบันทึกและจัดการข้อมูลรายจ่ายได้อย่างสะดวก รวดเร็ว และแม่นยำ
 
 ---
 
-## 🚀 Features
-- 📷 อัปโหลดภาพสลิปโอนเงิน  
-- 🔍 ตรวจจับข้อความจากภาพด้วย OCR  
-- 💰 แสดงข้อมูลสำคัญ เช่น จำนวนเงิน วันที่ และเวลา  
-- 🏦 รองรับสลิปจากหลายธนาคาร  
-- 📊 แสดงผลข้อมูลในรูปแบบที่เข้าใจง่าย  
+##  Features
+-  อัปโหลดภาพสลิปโอนเงิน  
+-  ตรวจจับข้อความจากภาพด้วย OCR  
+-  แสดงข้อมูลสำคัญ เช่น จำนวนเงิน วันที่ และเวลา  
+-  รองรับสลิปจากหลายธนาคาร  
+-  แสดงผลข้อมูลในรูปแบบที่เข้าใจง่าย  
 
 ---
 
-## 🛠️ Technologies Used
+##  Technologies Used
 - React (Create React App)  
 - JavaScript  
 - HTML / CSS  
@@ -39,7 +39,7 @@ npm install
 
 ---
 
-## ▶️ Usage
+##  Usage
 
 รันโปรเจกต์:
 ```bash
@@ -51,19 +51,19 @@ http://localhost:3000
 
 ---
 
-## 📦 Build สำหรับ Production
+##  Build สำหรับ Production
 ```bash
 npm run build
 ```
 
 ---
 
-## 📸 Screenshots
+##  Screenshots
 > เพิ่มรูปหน้าจอ เช่น หน้าอัปโหลดสลิป หรือหน้าผลลัพธ์ OCR
 
 ---
 
-## 👩‍💻 Author
+##  Author
 - Supawadee Muangprasert
 
 ---
